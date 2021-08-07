@@ -26,39 +26,39 @@ def resultsRepeatable12h = searchService.search(user, jqlQueryParser.parseQuery(
 def resultsOpenedLinkedHit = searchService.search(user, jqlQueryParser.parseQuery(queryOpenedLinkedHit), pager)
 
 if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total == 0 && resultsOpenedLinkedHit.total == 0) {
-    final String commentBody = """По компоненту существуют открытые связанные билеты: [${resultsOpenedProblems.total}|https://support24.online/issues/?jql=${queryOpenedProblems.replaceAll(/ /, "%20").replaceAll(/=/, "%3D").replaceAll("\"", "%22").replaceAll(",", "%2C")}]
+    final String commentBody = """По компоненту существуют открытые связанные билеты: [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]
 	Точного наличия открытого исследования по этому алерту установить не удалось."""
 	ComponentAccessor.commentManager.create(issue, user, commentBody, true)
 }
 
 if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total == 0 && resultsOpenedLinkedHit.total > 0) {
-    final String commentBody = """Найден билет(ы), в котором производится исследование этого алерта: [${resultsOpenedLinkedHit.total}|https://support24.online/issues/?jql=${queryOpenedProblems.replaceAll(/ /, "%20").replaceAll(/=/, "%3D").replaceAll("\"", "%22").replaceAll(",", "%2C")}]
-	Также, по компоненту существуют открытые связанные билеты (могут совпадать с вышенайденным): [${resultsOpenedProblems.total}|https://support24.online/issues/?jql=${queryOpenedProblems.replaceAll(/ /, "%20").replaceAll(/=/, "%3D").replaceAll("\"", "%22").replaceAll(",", "%2C")}]"""
+    final String commentBody = """Найден билет(ы), в котором производится исследование этого алерта: [${resultsOpenedLinkedHit.total}|${jqlToUrl(queryOpenedLinkedHit)}]
+	Также, по компоненту существуют открытые связанные билеты (могут совпадать с вышенайденным): [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]"""
 	ComponentAccessor.commentManager.create(issue, user, commentBody, true)
 }
 
 if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total > 0 && resultsOpenedLinkedHit.total == 0) {
-    final String commentBody = """По компоненту существуют открытые связанные билеты: [${resultsOpenedProblems.total}|https://support24.online/issues/?jql=${queryOpenedProblems.replaceAll(/ /, "%20").replaceAll(/=/, "%3D").replaceAll("\"", "%22").replaceAll(",", "%2C")}]
-	За последние двое суток инцидентов по этому компоненту, не связанных с другими билетами: [${resultsWithoutLinkLast2Days.total}|https://support24.online/issues/?jql=${queryWithoutLinkLast2Days.replaceAll(/ /, "%20").replaceAll(/=/, "%3D").replaceAll("\"", "%22").replaceAll(",", "%2C")}]
+    final String commentBody = """По компоненту существуют открытые связанные билеты: [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]
+	За последние двое суток инцидентов по этому компоненту, не связанных с другими билетами: [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}]
 	Точного наличия открытого исследования по этому алерту установить не удалось. Создайте его, если это необходимо"""
 	ComponentAccessor.commentManager.create(issue, user, commentBody, true)
 }
 
 if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total > 0 && resultsOpenedLinkedHit.total > 0) {
-    final String commentBody = """Найден билет(ы), в котором производится исследование этого алерта: [${resultsOpenedLinkedHit.total}|https://support24.online/issues/?jql=${queryOpenedProblems.replaceAll(/ /, "%20").replaceAll(/=/, "%3D").replaceAll("\"", "%22").replaceAll(",", "%2C")}]
-	Также, по компоненту существуют открытые связанные билеты (могут совпадать с вышенайденным): [${resultsOpenedProblems.total}|https://support24.online/issues/?jql=${queryOpenedProblems.replaceAll(/ /, "%20").replaceAll(/=/, "%3D").replaceAll("\"", "%22").replaceAll(",", "%2C")}]
-	За последние двое суток инцидентов по этому компоненту, не связанных с другими билетами: [${resultsWithoutLinkLast2Days.total}|https://support24.online/issues/?jql=${queryWithoutLinkLast2Days.replaceAll(/ /, "%20").replaceAll(/=/, "%3D").replaceAll("\"", "%22").replaceAll(",", "%2C")}]"""
+    final String commentBody = """Найден билет(ы), в котором производится исследование этого алерта: [${resultsOpenedLinkedHit.total}|${jqlToUrl(queryOpenedLinkedHit)}]
+	Также, по компоненту существуют открытые связанные билеты (могут совпадать с вышенайденным): [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]
+	За последние двое суток инцидентов по этому компоненту, не связанных с другими билетами: [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}]"""
 	ComponentAccessor.commentManager.create(issue, user, commentBody, true)
 }
 
 if (resultsOpenedProblems.total == 0 && resultsWithoutLinkLast2Days.total > 6) {
-    final String commentBody = """Открытых связанных билетов по этому компоненту не найдено, но число инцидентов с этого сервера за последние 48 часов - [${resultsWithoutLinkLast2Days.total}|https://support24.online/issues/?jql=${queryWithoutLinkLast2Days.replaceAll(/ /, "%20").replaceAll(/=/, "%3D").replaceAll("\"", "%22").replaceAll(",", "%2C")}] 
+    final String commentBody = """Открытых связанных билетов по этому компоненту не найдено, но число инцидентов с этого сервера за последние 48 часов - [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}] 
  Возможно необходимо создать Problem"""
 	ComponentAccessor.commentManager.create(issue, user, commentBody, true)
 }
 
 if (resultsRepeatable12h.total > 4 && resultsOpenedProblems.total == 0) {
-    final String commentBody = """Открытых связанных билетов по этому компоненту не найдено, но число подобных алертов за последние 12 часов превысило 4. Текущее число: [${resultsRepeatable12h.total}|https://support24.online/issues/?jql=${queryWithoutLinkLast2Days.replaceAll(/ /, "%20").replaceAll(/=/, "%3D").replaceAll("\"", "%22").replaceAll(",", "%2C")}] 
+    final String commentBody = """Открытых связанных билетов по этому компоненту не найдено, но число подобных алертов за последние 12 часов превысило 4. Текущее число: [${resultsRepeatable12h.total}|${jqlToUrl(queryRepeatable12h)}] 
  Возможно необходимо создать Problem"""
 	ComponentAccessor.commentManager.create(issue, user, commentBody, true)
 }
