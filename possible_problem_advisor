@@ -20,11 +20,13 @@ def queryWithoutLinkLast2Days = "type = Incident AND project = ${projectName} AN
 def queryOpenedProblems = "type != Incident AND project = ${projectName} AND issueFunction in linkedIssuesOf(\"type=Incident AND component = ${issueComponent}\", causes) AND status != Closed ORDER BY created DESC"
 def queryRepeatable12h = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND summary ~ \"${ruleContext.renderSmartValues('{{issue.summary}}')}\" AND createdDate > -12h ORDER BY created DESC"
 def queryOpenedLinkedHit = "type != Incident AND project = ${projectName} AND issueFunction in linkedIssuesOf(\"type=Incident AND component = ${issueComponent} and summary ~\'${ruleContext.renderSmartValues('{{issue.summary}}')}\'\", causes) AND status != Closed ORDER BY created DESC"
+def queryOpenIncidents = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND status != Closed ORDER BY created DESC"
 
 def resultsWithoutLinkLast2Days = searchService.search(user, jqlQueryParser.parseQuery(queryWithoutLinkLast2Days), pager)
 def resultsOpenedProblems = searchService.search(user, jqlQueryParser.parseQuery(queryOpenedProblems), pager)
 def resultsRepeatable12h = searchService.search(user, jqlQueryParser.parseQuery(queryRepeatable12h), pager)
 def resultsOpenedLinkedHit = searchService.search(user, jqlQueryParser.parseQuery(queryOpenedLinkedHit), pager)
+def resultsOpenIncidents = searchService.search(user, jqlQueryParser.parseQuery(queryOpenIncidents), pager)
 
 if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total == 0 && resultsOpenedLinkedHit.total == 0) {
     final String commentBody = """По компоненту существуют открытые связанные заявки, в которых может производиться исследование проблем: [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]
@@ -73,5 +75,11 @@ if (resultsOpenedLinkedHit.total == 1) {
     ComponentAccessor.issueLinkManager.createIssueLink(sourceIssue.id, destinationIssue.id, linkType.id, 1L, user)
     final String commentBody = """Заявка прикреплена к ${destinationIssue}.
     Проверьте ${destinationIssue} и убедитесь что этот алерт с ним связан. Удалите связь, если прикрепление ошибочно."""
+	ComponentAccessor.commentManager.create(issue, user, commentBody, true)
+}
+
+if (resultsOpenIncidents.total > 2) {
+	final String commentBody = """Обнаружены открытые алерты по этому компоненту. Текущее число: [${resultsOpenIncidents.total}|${jqlToUrl(queryOpenIncidents)}] 
+ Возможно проблемы не ограничиваются этим алертом и необходимо исследовать ситуацию в комплексе"""
 	ComponentAccessor.commentManager.create(issue, user, commentBody, true)
 }
