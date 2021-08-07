@@ -8,13 +8,19 @@ def jqlToUrl (String jql) {
 	def UrlizedJql = "${ruleContext.renderSmartValues('{{baseUrl}}')}/issues/?jql=" + jql.replaceAll(/ /, "%20").replaceAll(/=/, "%3D").replaceAll("\"", "%22").replaceAll(",", "%2C")
 	return UrlizedJql
 }
-def issueComponent = ruleContext.renderSmartValues('{{issue.components.first.name}}')
 
+
+def issueComponent = ruleContext.renderSmartValues('{{issue.components.first.name}}')
 def jqlQueryParser = ComponentAccessor.getComponent(JqlQueryParser)
 def searchService = ComponentAccessor.getComponent(SearchService.class)
 def pager = PagerFilter.getUnlimitedFilter()
 def user = ComponentAccessor.getJiraAuthenticationContext().getLoggedInUser()
 def projectName = "${issue.key}".replaceAll(/-.*/, "")
+def visibility = "Staff only"
+
+def makeComment (String commentText, com.atlassian.jira.user.ApplicationUser commentUser) {
+	ComponentAccessor.commentManager.create(issue, commentUser, commentText, true)
+}
 
 def queryWithoutLinkLast2Days = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND issueLinkType != causes AND createdDate > -48h ORDER BY created DESC"
 def queryOpenedProblems = "type != Incident AND project = ${projectName} AND issueFunction in linkedIssuesOf(\"type=Incident AND component = ${issueComponent}\", causes) AND status != Closed ORDER BY created DESC"
@@ -31,39 +37,39 @@ def resultsOpenIncidents = searchService.search(user, jqlQueryParser.parseQuery(
 if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total == 0 && resultsOpenedLinkedHit.total == 0) {
     final String commentBody = """По компоненту существуют открытые связанные заявки, в которых может производиться исследование проблем: [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]
 	Точного наличия открытого исследования по этому алерту установить не удалось."""
-	ComponentAccessor.commentManager.create(issue, user, commentBody, true)
+	makeComment(commentBody, user)
 }
 
 if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total == 0 && resultsOpenedLinkedHit.total > 0) {
     final String commentBody = """Найден заявка(и), в котором производится исследование этого алерта: [${resultsOpenedLinkedHit.total}|${jqlToUrl(queryOpenedLinkedHit)}]
 	Также, по компоненту существуют открытые связанные заявка (могут совпадать с вышенайденным): [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]"""
-	ComponentAccessor.commentManager.create(issue, user, commentBody, true)
+	makeComment(commentBody, user)
 }
 
 if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total > 0 && resultsOpenedLinkedHit.total == 0) {
     final String commentBody = """По компоненту существуют открытые связанные заявки: [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]
 	За последние двое суток инцидентов по этому компоненту, не связанных с другими заявками: [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}]
 	Точного наличия открытого исследования по этому алерту установить не удалось. Создайте его, если это необходимо"""
-	ComponentAccessor.commentManager.create(issue, user, commentBody, true)
+	makeComment(commentBody, user)
 }
 
 if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total > 0 && resultsOpenedLinkedHit.total > 0) {
     final String commentBody = """Найдена заявка(и), в котором производится исследование этого алерта: [${resultsOpenedLinkedHit.total}|${jqlToUrl(queryOpenedLinkedHit)}]
 	Также, по компоненту существуют открытые связанные заявки (могут совпадать с вышенайденным): [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]
 	За последние двое суток инцидентов по этому компоненту, не связанных с другими заявками: [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}]. Возможно часть из них необходимо связать с вышенайденными."""
-	ComponentAccessor.commentManager.create(issue, user, commentBody, true)
+	makeComment(commentBody, user)
 }
 
 if (resultsOpenedProblems.total == 0 && resultsWithoutLinkLast2Days.total > 6) {
     final String commentBody = """Открытых связанных заявок, в которых может производиться исследование, по этому компоненту не найдено, но число инцидентов с этого сервера за последние 48 часов - [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}] 
  Рассмотрите найденные заявки, возможно необходимо создать Problem"""
-	ComponentAccessor.commentManager.create(issue, user, commentBody, true)
+	makeComment(commentBody, user)
 }
 
 if (resultsRepeatable12h.total > 3 && resultsOpenedProblems.total == 0) {
     final String commentBody = """Открытых связанных заявок по этому компоненту не найдено, но число подобных алертов за последние 12 часов превысило 3. Текущее число: [${resultsRepeatable12h.total}|${jqlToUrl(queryRepeatable12h)}] 
  Возможно необходимо создать Problem и исследовать причину повторения алертов."""
-	ComponentAccessor.commentManager.create(issue, user, commentBody, true)
+	makeComment(commentBody, user)
 }
 
 if (resultsOpenedLinkedHit.total == 1) {
@@ -75,11 +81,11 @@ if (resultsOpenedLinkedHit.total == 1) {
     ComponentAccessor.issueLinkManager.createIssueLink(sourceIssue.id, destinationIssue.id, linkType.id, 1L, user)
     final String commentBody = """Заявка прикреплена к ${destinationIssue}.
     Проверьте ${destinationIssue} и убедитесь что этот алерт с ним связан. Удалите связь, если прикрепление ошибочно."""
-	ComponentAccessor.commentManager.create(issue, user, commentBody, true)
+	makeComment(commentBody, user)
 }
 
 if (resultsOpenIncidents.total > 2) {
 	final String commentBody = """Обнаружены открытые алерты по этому компоненту. Текущее число: [${resultsOpenIncidents.total}|${jqlToUrl(queryOpenIncidents)}] 
  Возможно проблемы не ограничиваются этим алертом и необходимо исследовать ситуацию в комплексе"""
-	ComponentAccessor.commentManager.create(issue, user, commentBody, true)
+	makeComment(commentBody, user)
 }
