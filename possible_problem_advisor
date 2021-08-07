@@ -8,7 +8,7 @@ def jqlToUrl (String jql) {
 	def UrlizedJql = "${ruleContext.renderSmartValues('{{baseUrl}}')}/issues/?jql=" + jql.replaceAll(/ /, "%20").replaceAll(/=/, "%3D").replaceAll("\"", "%22").replaceAll(",", "%2C")
 	return UrlizedJql
 }
-def issueComponent = ${ruleContext.renderSmartValues('{{issue.components.first.name}}')}
+def issueComponent = ruleContext.renderSmartValues('{{issue.components.first.name}}')
 
 def jqlQueryParser = ComponentAccessor.getComponent(JqlQueryParser)
 def searchService = ComponentAccessor.getComponent(SearchService.class)
