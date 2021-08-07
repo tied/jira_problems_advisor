@@ -48,7 +48,7 @@ if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total > 0 && 
 if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total > 0 && resultsOpenedLinkedHit.total > 0) {
     final String commentBody = """Найден билет(ы), в котором производится исследование этого алерта: [${resultsOpenedLinkedHit.total}|${jqlToUrl(queryOpenedLinkedHit)}]
 	Также, по компоненту существуют открытые связанные билеты (могут совпадать с вышенайденным): [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]
-	За последние двое суток инцидентов по этому компоненту, не связанных с другими билетами: [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}]. Возможно их необходимо связать с вышенайденными."""
+	За последние двое суток инцидентов по этому компоненту, не связанных с другими билетами: [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}]. Возможно часть из них необходимо связать с вышенайденными."""
 	ComponentAccessor.commentManager.create(issue, user, commentBody, true)
 }
 
