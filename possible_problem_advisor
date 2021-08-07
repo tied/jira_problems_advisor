@@ -8,6 +8,7 @@ def jqlToUrl (String jql) {
 	def UrlizedJql = "${ruleContext.renderSmartValues('{{baseUrl}}')}/issues/?jql=" + jql.replaceAll(/ /, "%20").replaceAll(/=/, "%3D").replaceAll("\"", "%22").replaceAll(",", "%2C")
 	return UrlizedJql
 }
+def issueComponent = ${ruleContext.renderSmartValues('{{issue.components.first.name}}')}
 
 def jqlQueryParser = ComponentAccessor.getComponent(JqlQueryParser)
 def searchService = ComponentAccessor.getComponent(SearchService.class)
@@ -15,10 +16,10 @@ def pager = PagerFilter.getUnlimitedFilter()
 def user = ComponentAccessor.getJiraAuthenticationContext().getLoggedInUser()
 def projectName = "${issue.key}".replaceAll(/-.*/, "")
 
-def queryWithoutLinkLast2Days = "type = Incident AND project = ${projectName} AND component = ${ruleContext.renderSmartValues('{{issue.components.first.name}}')} AND issueLinkType != causes AND createdDate > -48h ORDER BY created DESC"
-def queryOpenedProblems = "type != Incident AND project = ${projectName} AND issueFunction in linkedIssuesOf(\"type=Incident AND component = ${ruleContext.renderSmartValues('{{issue.components.first.name}}')}\", causes) AND status != Closed ORDER BY created DESC"
-def queryRepeatable12h = "type = Incident AND project = ${projectName} AND component = ${ruleContext.renderSmartValues('{{issue.components.first.name}}')} AND summary ~ \"${ruleContext.renderSmartValues('{{issue.summary}}')}\" AND createdDate > -12h ORDER BY created DESC"
-def queryOpenedLinkedHit = "type != Incident AND project = ${projectName} AND issueFunction in linkedIssuesOf(\"type=Incident AND component = ${ruleContext.renderSmartValues('{{issue.components.first.name}}')} and summary ~\'${ruleContext.renderSmartValues('{{issue.summary}}')}\'\", causes) AND status != Closed ORDER BY created DESC"
+def queryWithoutLinkLast2Days = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND issueLinkType != causes AND createdDate > -48h ORDER BY created DESC"
+def queryOpenedProblems = "type != Incident AND project = ${projectName} AND issueFunction in linkedIssuesOf(\"type=Incident AND component = ${issueComponent}\", causes) AND status != Closed ORDER BY created DESC"
+def queryRepeatable12h = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND summary ~ \"${ruleContext.renderSmartValues('{{issue.summary}}')}\" AND createdDate > -12h ORDER BY created DESC"
+def queryOpenedLinkedHit = "type != Incident AND project = ${projectName} AND issueFunction in linkedIssuesOf(\"type=Incident AND component = ${issueComponent} and summary ~\'${ruleContext.renderSmartValues('{{issue.summary}}')}\'\", causes) AND status != Closed ORDER BY created DESC"
 
 def resultsWithoutLinkLast2Days = searchService.search(user, jqlQueryParser.parseQuery(queryWithoutLinkLast2Days), pager)
 def resultsOpenedProblems = searchService.search(user, jqlQueryParser.parseQuery(queryOpenedProblems), pager)
@@ -26,7 +27,7 @@ def resultsRepeatable12h = searchService.search(user, jqlQueryParser.parseQuery(
 def resultsOpenedLinkedHit = searchService.search(user, jqlQueryParser.parseQuery(queryOpenedLinkedHit), pager)
 
 if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total == 0 && resultsOpenedLinkedHit.total == 0) {
-    final String commentBody = """По компоненту существуют открытые связанные билеты: [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]
+    final String commentBody = """По компоненту существуют открытые связанные билеты, в которых может производиться исследование проблем: [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]
 	Точного наличия открытого исследования по этому алерту установить не удалось."""
 	ComponentAccessor.commentManager.create(issue, user, commentBody, true)
 }
@@ -47,19 +48,19 @@ if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total > 0 && 
 if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total > 0 && resultsOpenedLinkedHit.total > 0) {
     final String commentBody = """Найден билет(ы), в котором производится исследование этого алерта: [${resultsOpenedLinkedHit.total}|${jqlToUrl(queryOpenedLinkedHit)}]
 	Также, по компоненту существуют открытые связанные билеты (могут совпадать с вышенайденным): [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]
-	За последние двое суток инцидентов по этому компоненту, не связанных с другими билетами: [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}]"""
+	За последние двое суток инцидентов по этому компоненту, не связанных с другими билетами: [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}]. Возможно их необходимо связать с вышенайденными."""
 	ComponentAccessor.commentManager.create(issue, user, commentBody, true)
 }
 
 if (resultsOpenedProblems.total == 0 && resultsWithoutLinkLast2Days.total > 6) {
-    final String commentBody = """Открытых связанных билетов по этому компоненту не найдено, но число инцидентов с этого сервера за последние 48 часов - [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}] 
- Возможно необходимо создать Problem"""
+    final String commentBody = """Открытых связанных билетов, в которых может производиться исследование, по этому компоненту не найдено, но число инцидентов с этого сервера за последние 48 часов - [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}] 
+ Рассмотрите найденные билеты, возможно необходимо создать Problem"""
 	ComponentAccessor.commentManager.create(issue, user, commentBody, true)
 }
 
-if (resultsRepeatable12h.total > 4 && resultsOpenedProblems.total == 0) {
-    final String commentBody = """Открытых связанных билетов по этому компоненту не найдено, но число подобных алертов за последние 12 часов превысило 4. Текущее число: [${resultsRepeatable12h.total}|${jqlToUrl(queryRepeatable12h)}] 
- Возможно необходимо создать Problem"""
+if (resultsRepeatable12h.total > 3 && resultsOpenedProblems.total == 0) {
+    final String commentBody = """Открытых связанных билетов по этому компоненту не найдено, но число подобных алертов за последние 12 часов превысило 3. Текущее число: [${resultsRepeatable12h.total}|${jqlToUrl(queryRepeatable12h)}] 
+ Возможно необходимо создать Problem и исследовать причину повторения алертов."""
 	ComponentAccessor.commentManager.create(issue, user, commentBody, true)
 }
 
@@ -71,6 +72,6 @@ if (resultsOpenedLinkedHit.total == 1) {
     
     ComponentAccessor.issueLinkManager.createIssueLink(sourceIssue.id, destinationIssue.id, linkType.id, 1L, user)
     final String commentBody = """Заявка прикреплена к ${destinationIssue}.
-    Проверьте корректность."""
+    Проверьте ${destinationIssue} и убедитесь что этот алерт с ним связан. Удалите связь, если прикрепление ошибочно."""
 	ComponentAccessor.commentManager.create(issue, user, commentBody, true)
 }
