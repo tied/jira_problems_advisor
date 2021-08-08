@@ -100,7 +100,7 @@ if (resultsOpenIncidents.total > 2) {
 def createdDateValue = new Date()
 def Integer foundRepeatableDaily = 0 //This is the counter of total number of issues found after the cycle. I don't expect that issue will occur 7 times out of 7 days. I assume 3 or 4 out of last 7 days is enough to suspect that there is a daily reoccurence pattern.
 def String commentRepeatableDaily = ""
-for (Integer i = 1; i < 7; i++) {
+for (Integer i = 1; i < 8; i++) {
    //Next two lines are ugly as hell, but it works. Probably did a bad job trying to match all those timestamps/dates and JQL requirements. Will mark it as TODO, this definetely can and must be simplified.
    //replaceAll at the end is required since JQL don't want to work when Timestamp has seconds and milliseconds, so this regexp just removes them.
    //also defining variables in each iteration feels wrong to me, TODO rewriting that part.
@@ -109,13 +109,13 @@ for (Integer i = 1; i < 7; i++) {
    def queryRepeatableDaily = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND summary ~ \"${ruleContext.renderSmartValues('{{issue.summary}}')}\" AND createdDate > \"${dailyCheckFrom}\" and createdDate < \"${dailyCheckTill}\" ORDER BY created DESC"
    def resultsRepeatableDaily = searchService.search(user, jqlQueryParser.parseQuery(queryRepeatableDaily), pager)
    makeComment("[${resultsRepeatableDaily.total}|${jqlToUrl(queryRepeatableDaily)}]",user, visibility)
-   if (resultsRepeatableDaily.total == 1) {
+   if (resultsRepeatableDaily.total == 1) { //maybe should use > 1 instead. In such case, need to change commentRepeatableDaily defining to work with all results (not only the first as now). But in current design and workload I need == 1. Can hardly imagine more than 1 incident for Component + Summary created in 20 minutes gap per Project.
 	   foundRepeatableDaily++
 	   commentRepeatableDaily = commentRepeatableDaily+"${resultsRepeatableDaily.results.key.get(0)} "
    }
 }
 
-if (foundRepeatableDaily > 3) {
+if (foundRepeatableDaily > 2) {
 	commentRepeatableDaily = """Этот алерт возможно повторяется каждый день. За последнюю неделю найдены следующие заявки, приходящие примерно в одно время:
 	"""+"${commentRepeatableDaily}"+"""
 	Проверьте вышенайденные заявки, и если необходимо создайте Problem для исследования."""
