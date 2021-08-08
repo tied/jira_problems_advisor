@@ -108,7 +108,7 @@ for (Integer i = 1; i < 8; i++) {
    def dailyCheckTill = "${(new Date(createdDateValue.getTime()- i*(86400000) + repeatableCheckGap*60*1000)).toTimestamp()}".replaceAll(":.{2}[.].{3}", "") //this sets ending time to find repeatable issues. 86400000 is 24hours in milliseconds
    def queryRepeatableDaily = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND summary ~ \"${ruleContext.renderSmartValues('{{issue.summary}}')}\" AND createdDate > \"${dailyCheckFrom}\" and createdDate < \"${dailyCheckTill}\" ORDER BY created DESC"
    def resultsRepeatableDaily = searchService.search(user, jqlQueryParser.parseQuery(queryRepeatableDaily), pager)
-   makeComment("[${resultsRepeatableDaily.total}|${jqlToUrl(queryRepeatableDaily)}]",user, visibility)
+   //makeComment("[${resultsRepeatableDaily.total}|${jqlToUrl(queryRepeatableDaily)}]",user, visibility) //for debug purposes to see each days results
    if (resultsRepeatableDaily.total == 1) { //maybe should use > 1 instead. In such case, need to change commentRepeatableDaily defining to work with all results (not only the first as now). But in current design and workload I need == 1. Can hardly imagine more than 1 incident for Component + Summary created in 20 minutes gap per Project.
 	   foundRepeatableDaily++
 	   commentRepeatableDaily = commentRepeatableDaily+"${resultsRepeatableDaily.results.key.get(0)} "
