@@ -29,7 +29,7 @@ def makeComment (String commentText, com.atlassian.jira.user.ApplicationUser com
 	//ComponentAccessor.commentManager.create(issue, commentUser, commentText, null, null, true) //uncomment this line if you don't need visibility functionality. All comments will have default visibility.
 }
 
-def queryWithoutLinkLast2Days = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND issueLinkType != causes AND createdDate > -48h ORDER BY created DESC"
+def queryWithoutLinkLast2Days = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND issueLinkType != causes AND createdDate > -48h AND issuekey != ${issue.key} ORDER BY created DESC"
 def queryOpenedProblems = "type != Incident AND project = ${projectName} AND issueFunction in linkedIssuesOf(\"type=Incident AND component = ${issueComponent}\", causes) AND status != Closed ORDER BY created DESC"
 def queryRepeatable12h = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND summary ~ \"${ruleContext.renderSmartValues('{{issue.summary}}')}\" AND createdDate > -12h ORDER BY created DESC"
 def queryOpenedLinkedHit = "type != Incident AND project = ${projectName} AND issueFunction in linkedIssuesOf(\"type=Incident AND component = ${issueComponent} and summary ~\'${ruleContext.renderSmartValues('{{issue.summary}}')}\'\", causes) AND status != Closed ORDER BY created DESC"
@@ -48,8 +48,8 @@ if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total == 0 &&
 }
 
 if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total == 0 && resultsOpenedLinkedHit.total > 0) {
-    final String commentBody = """Найден заявка(и), в котором производится исследование этого алерта: [${resultsOpenedLinkedHit.total}|${jqlToUrl(queryOpenedLinkedHit)}]
-	Также, по компоненту существуют открытые связанные заявка (могут совпадать с вышенайденным): [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]"""
+    final String commentBody = """Найден заявка(и), в которой производится исследование этого алерта: [${resultsOpenedLinkedHit.total}|${jqlToUrl(queryOpenedLinkedHit)}]
+	Также, по компоненту существуют открытые связанные заявки (могут совпадать с вышенайденным): [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]"""
 	makeComment(commentBody, user, visibility)
 }
 
@@ -61,13 +61,13 @@ if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total > 0 && 
 }
 
 if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total > 0 && resultsOpenedLinkedHit.total > 0) {
-    final String commentBody = """Найдена заявка(и), в котором производится исследование этого алерта: [${resultsOpenedLinkedHit.total}|${jqlToUrl(queryOpenedLinkedHit)}]
+    final String commentBody = """Найдена заявка(и), в которой производится исследование этого алерта: [${resultsOpenedLinkedHit.total}|${jqlToUrl(queryOpenedLinkedHit)}]
 	Также, по компоненту существуют открытые связанные заявки (могут совпадать с вышенайденным): [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]
-	За последние двое суток инцидентов по этому компоненту, не связанных с другими заявками: [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}]. Возможно часть из них необходимо связать с вышенайденными."""
+	За последние двое суток инцидентов по этому компоненту, не связанных с другими заявками: [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}]"""
 	makeComment(commentBody, user, visibility)
 }
 
-if (resultsOpenedProblems.total == 0 && resultsWithoutLinkLast2Days.total > 6) {
+if (resultsOpenedProblems.total == 0 && resultsWithoutLinkLast2Days.total > 5) {
     final String commentBody = """Открытых связанных заявок, в которых может производиться исследование, по этому компоненту не найдено, но число инцидентов с этого сервера за последние 48 часов - [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}] 
  Рассмотрите найденные заявки, возможно необходимо создать Problem"""
 	makeComment(commentBody, user, visibility)
@@ -126,7 +126,7 @@ for (Integer i = 1; i < 5; i++) {
    def weeklyCheckTill = "${(new Date(createdDateValue.getTime()- i*(604800000) + repeatableCheckGap*60*1000)).toTimestamp()}".replaceAll(":.{2}[.].{3}", "") //this sets ending time to find repeatable issues. 604800000 is 24hours in milliseconds
    def queryRepeatableWeekly = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND summary ~ \"${ruleContext.renderSmartValues('{{issue.summary}}')}\" AND createdDate > \"${weeklyCheckFrom}\" and createdDate < \"${weeklyCheckTill}\" ORDER BY created DESC"
    def resultsRepeatableWeekly = searchService.search(user, jqlQueryParser.parseQuery(queryRepeatableWeekly), pager)
-   makeComment("[${resultsRepeatableWeekly.total}|${jqlToUrl(queryRepeatableWeekly)}]",user, visibility) //for debug purposes to see each days results
+   //makeComment("[${resultsRepeatableWeekly.total}|${jqlToUrl(queryRepeatableWeekly)}]",user, visibility) //for debug purposes to see each days results
    if (resultsRepeatableWeekly.total == 1) { //maybe should use > 1 instead. In such case, need to change commentRepeatableWeekly defining to work with all results (not only the first as now). But in current design and workload I need == 1. Can hardly imagine more than 1 incident for Component + Summary created in 30 minutes gap per Project.
 	   foundRepeatableWeekly++
 	   commentRepeatableWeekly = commentRepeatableWeekly+"${resultsRepeatableWeekly.results.key.get(0)} "
@@ -140,7 +140,7 @@ if (foundRepeatableDaily > 2) {
 	makeComment(commentRepeatableDaily, user, visibility)
 }
 
-if (foundRepeatableWeekly > 1 && foundRepeatableDaily < 2) {
+if (foundRepeatableWeekly > 1 && foundRepeatableDaily < 3) {
 	commentRepeatableWeekly = """Этот алерт возможно повторяется каждую неделю. За последние 4 недели найдены следующие заявки, приходящие примерно в одно время:
 	"""+"${commentRepeatableWeekly}"+"""
 	Проверьте вышенайденные заявки, и если необходимо создайте Problem для исследования."""
