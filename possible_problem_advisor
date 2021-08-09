@@ -48,8 +48,8 @@ if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total == 0 &&
 }
 
 if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total == 0 && resultsOpenedLinkedHit.total > 0) {
-    final String commentBody = """Найден заявка(и), в которой производится исследование этого алерта: [${resultsOpenedLinkedHit.total}|${jqlToUrl(queryOpenedLinkedHit)}]
-	Также, по компоненту существуют открытые связанные заявки (могут совпадать с вышенайденным): [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]"""
+    final String commentBody = """Найдена открытая заявка(и), в которой производится исследование этого алерта: [${resultsOpenedLinkedHit.total}|${jqlToUrl(queryOpenedLinkedHit)}]
+	Также, по компоненту существуют открытые связанные заявки (могут совпадать с вышенайденными): [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]"""
 	makeComment(commentBody, user, visibility)
 }
 
@@ -61,8 +61,8 @@ if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total > 0 && 
 }
 
 if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total > 0 && resultsOpenedLinkedHit.total > 0) {
-    final String commentBody = """Найдена заявка(и), в которой производится исследование этого алерта: [${resultsOpenedLinkedHit.total}|${jqlToUrl(queryOpenedLinkedHit)}]
-	Также, по компоненту существуют открытые связанные заявки (могут совпадать с вышенайденным): [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]
+    final String commentBody = """Найдена открытая заявка(и), в которой производится исследование этого алерта: [${resultsOpenedLinkedHit.total}|${jqlToUrl(queryOpenedLinkedHit)}]
+	Также, по компоненту существуют открытые связанные заявки (могут совпадать с вышенайденными): [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]
 	За последние двое суток инцидентов по этому компоненту, не связанных с другими заявками: [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}]"""
 	makeComment(commentBody, user, visibility)
 }
