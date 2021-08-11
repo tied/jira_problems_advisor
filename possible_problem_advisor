@@ -6,6 +6,9 @@ import com.atlassian.jira.issue.link.IssueLinkTypeManager
 import com.atlassian.jira.security.roles.ProjectRoleManager
 import java.sql.Timestamp
 import com.atlassian.jira.issue.Issue
+import com.atlassian.jira.issue.context.IssueContext
+import com.atlassian.jira.issue.context.IssueContextImpl
+import com.atlassian.jira.issue.fields.config.manager.PrioritySchemeManager
 
 def jqlToUrl (String jql) {
 	def UrlizedJql = "${ruleContext.renderSmartValues('{{baseUrl}}')}/issues/?jql=" + jql.replaceAll(/ /, "%20").replaceAll(/=/, "%3D").replaceAll("\"", "%22").replaceAll(",", "%2C")
@@ -136,7 +139,7 @@ for (Integer i = 1; i < 5; i++) {
 //The next thing 'result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time"))' is to get a date from custom field used in our company. It can be safely replaced with 'result.resolutiondate' or any other.
 //This whole if construction afterwards is just to avoid 'null' in comment output.
 //replaceAll(":.{2}[.].{1}", "") is for beautify only, I don't need seconds and milliseconds.
-if (listRepeatableDaily.size() > 2) {
+if (listRepeatableDaily.size() > 2 && listRepeatableDaily.size() < 6) {
 	def commentRepeatableDaily = """Этот алерт возможно повторяется каждый день. За последнюю неделю найдены следующие заявки, приходящие примерно в одно время:
     """
     listRepeatableDaily.each {result ->; commentRepeatableDaily += """ ${result.key} - ${result.summary} *Created:* ${result.created.toString().replaceAll(":.{2}[.].{1}", "")} *Resolved:* ${if (result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")) == null) {return "Not resolved"} else {result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")).toString().replaceAll(":.{2}[.].{1}", "")}} 
@@ -148,8 +151,58 @@ if (listRepeatableDaily.size() > 2) {
 if (listRepeatableWeekly.size() > 1 && listRepeatableDaily.size() < 3) {
 	def commentRepeatableWeekly = """Этот алерт возможно повторяется каждую неделю. За последние 4 недели найдены следующие заявки, приходящие примерно в одно время:
     """
-    listRepeatableDaily.each {result ->; commentRepeatableWeekly += """ ${result.key} - ${result.summary} *Created:* ${result.created.toString().replaceAll(":.{2}[.].{1}", "")} *Resolved:* ${if (result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")) == null) {return "Not resolved"} else {result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")).toString().replaceAll(":.{2}[.].{1}", "")}} 
+    listRepeatableWeekly.each {result ->; commentRepeatableWeekly += """ ${result.key} - ${result.summary} *Created:* ${result.created.toString().replaceAll(":.{2}[.].{1}", "")} *Resolved:* ${if (result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")) == null) {return "Not resolved"} else {result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")).toString().replaceAll(":.{2}[.].{1}", "")}} 
     """}
 	commentRepeatableWeekly += """Проверьте вышенайденные заявки, и если необходимо создайте Problem для исследования."""
 	makeComment(commentRepeatableWeekly, user, visibility)
+}
+
+if (listRepeatableDaily.size() > 6 && resultsOpenedLinkedHit.total == 0 ) {
+	def issueTypeName = 'Problem'	
+	def summary = "[RPTISSUE] ${listRepeatableDaily.summary.get(0).replaceAll("Zabbix.* - |Prometheus |test|prod|preprod|dev", "")}"
+	def priorityName = 'Normal'
+
+	def issueService = ComponentAccessor.issueService
+	def constantsManager = ComponentAccessor.constantsManager
+	def prioritySchemeManager = ComponentAccessor.getComponent(PrioritySchemeManager)
+	def project = ComponentAccessor.projectManager.getProjectObjByKey(projectName)
+	def description = """Исследовать повторяющийся алерт:
+    """
+    listRepeatableDaily.each {result ->; description += """ ${result.key} - ${result.summary} Created: ${result.created.toString().replaceAll(":.{2}[.].{1}", "")} Resolved: ${if (result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")) == null) {return "Not resolved"} else {result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")).toString().replaceAll(":.{2}[.].{1}", "")}} 
+    """}
+	description += """ """
+	assert project : "Could not find project with key $project"
+
+	def issueType = constantsManager.allIssueTypeObjects.findByName(issueTypeName)
+	assert issueType : "Could not find issue type with name $issueTypeName"
+
+	// if we cannot find the priority with the given name or if this is null, then set the default priority
+	def issueContext = new IssueContextImpl(project, issueType) as IssueContext
+	def priorityId = constantsManager.priorities.findByName(priorityName)?.id ?: prioritySchemeManager.getDefaultOption(issueContext)
+    def component = ComponentAccessor.getProjectComponentManager().findByComponentName(project.getId(), "${issueComponent}")
+	def issueNewProblem = ComponentAccessor.getIssueFactory().getIssue()
+    def projectid = issue.getFixVersions().iterator().next().getId()
+	issueNewProblem.setProjectId(project.id)
+    issueNewProblem.setComponent([component])
+	issueNewProblem.setIssueTypeId(issueType.id)
+	issueNewProblem.setReporterId(user.name)
+    issueNewProblem.setFixVersions(issue.fixVersions)
+	issueNewProblem.setSummary(summary)
+	issueNewProblem.setPriorityId(priorityId)
+	issueNewProblem.setDescription(description)
+	def subTask = ComponentAccessor.getIssueManager().createIssueObject(user, issueNewProblem)
+    def commentCreatedProblem="Создан Problem ${issueNewProblem.key}"
+    makeComment(commentCreatedProblem, user, visibility)
+	def linkType = ComponentAccessor.getComponent(IssueLinkTypeManager).issueLinkTypes.findByName("Problem/Incident")
+    
+    def sourceIssue = ComponentAccessor.issueManager.getIssueByCurrentKey("${issue.key}")
+    def destinationIssue = ComponentAccessor.issueManager.getIssueByCurrentKey(issueNewProblem.key)
+    ComponentAccessor.issueLinkManager.createIssueLink(sourceIssue.id, destinationIssue.id, linkType.id, 1L, user)
+	
+	listRepeatableDaily.each {result ->;
+	sourceIssue = ComponentAccessor.issueManager.getIssueByCurrentKey(result.key)
+	ComponentAccessor.issueLinkManager.createIssueLink(sourceIssue.id, destinationIssue.id, linkType.id, 1L, user)
+	}
+	
+	
 }
