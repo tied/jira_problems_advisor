@@ -29,7 +29,7 @@ def searchService = ComponentAccessor.getComponent(SearchService.class)
 def pager = PagerFilter.getUnlimitedFilter()
 def user = ComponentAccessor.getJiraAuthenticationContext().getLoggedInUser()
 def projectName = "${issue.key}".replaceAll(/-.*/, "")
-def Boolean ticketCreatedFlag = false //this one is to avoid creating multiple problems by this rule. Can be removed from the code in case creating multiple issues is required.
+def Boolean ticketCreatedFlag = false //this one is to avoid creating multiple problems by this rule. 
 
 def visibility = "Staff only" //Name of the visibility group for comment. Default is for Project Roles name. Should be replaced with proper. It may be not useful for someone. You can just comment it out. Also you need to change makeComment function. 
 def Integer repeatableCheckGap = 15 // this set time gap in minutes for finding repeatable issues
@@ -245,7 +245,7 @@ if (listRepeatableDaily.size() >= 2) { //comment will trigger anyway, whether or
 if (listRepeatableDaily.size() >= 3 && resultsOpenedLinkedHit.total == 0 && !ticketCreatedFlag) {
     String dailyProblemSummary = "[RPTISSUE] ${issue.summary.replaceAll("Zabbix.* - |Prometheus |test|prod|preprod|dev", "")}" //this variable can be used to choose summary based on some condition, e.g based on projectName. Currently is just removes some words from issue summary based on my needs
 	createLinkedProblem(listRepeatableDaily, "Problem", dailyProblemSummary, "Normal", "Найден ежедневно повторяющийся алерт", projectName, user, visibility)
-    ticketCreatedFlag = true
+    ticketCreatedFlag = true //Can be removed from the code in case creating multiple issues is required.
 }
 
 
@@ -261,5 +261,5 @@ if (listRepeatableWeekly.size() >= 1) { //comment will trigger anyway, whether o
 if (listRepeatableWeekly.size() >= 2 && resultsOpenedLinkedHit.total == 0 && !ticketCreatedFlag) {
     String weeklyProblemSummary = "[RPTISSUE] ${issue.summary.replaceAll("Zabbix.* - |Prometheus |test|prod|preprod|dev", "")}" //this variable can be used to choose summary based on some condition, e.g based on projectName. Currently is just removes some words from issue summary based on my needs
 	createLinkedProblem(listRepeatableWeekly, "Problem", weeklyProblemSummary, "Normal", "Найден еженедельно повторяющийся алерт", projectName, user, visibility)
-    ticketCreatedFlag = true
+    ticketCreatedFlag = true //Can be removed from the code in case creating multiple issues is required.
 }
