@@ -249,7 +249,7 @@ if (listRepeatableDaily.size() >= 3 && resultsOpenedLinkedHit.total == 0 && !tic
 }
 
 
-if (listRepeatableWeekly.size() >= 1) { //comment will trigger anyway, whether or not ticket is getting created.
+if (listRepeatableWeekly.size() >= 2) { //comment will trigger anyway, whether or not ticket is getting created.
 	def commentRepeatableWeekly = """Этот алерт возможно повторяется каждую неделю. За последние 4 недели найдены следующие заявки, приходящие примерно в одно время:
     """
     listRepeatableWeekly.each {result ->; commentRepeatableWeekly += """ ${result.key} - ${result.summary} *Created:* ${result.created.toString().replaceAll(":.{2}[.].{1}", "")} *Resolved:* ${if (result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")) == null) {return "Not resolved"} else {result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")).toString().replaceAll(":.{2}[.].{1}", "")}} 
