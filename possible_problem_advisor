@@ -29,6 +29,7 @@ def searchService = ComponentAccessor.getComponent(SearchService.class)
 def pager = PagerFilter.getUnlimitedFilter()
 def user = ComponentAccessor.getJiraAuthenticationContext().getLoggedInUser()
 def projectName = "${issue.key}".replaceAll(/-.*/, "")
+def Boolean ticketCreatedFlag = false
 
 def visibility = "Staff only" //Name of the visibility group for comment. Default is for Project Roles name. Should be replaced with proper. It may be not useful for someone. You can just comment it out. Also you need to change makeComment function. 
 def Integer repeatableCheckGap = 15 // this set time gap in minutes for finding repeatable issues
@@ -232,7 +233,7 @@ The next thing 'result.getCustomFieldValue(ComponentAccessor.getCustomFieldManag
 This whole 'if' construction afterwards is just to avoid 'null' in comment output.
 replaceAll(":.{2}[.].{1}", "") is for beautify only, I don't need seconds and milliseconds. 
 */
-if (listRepeatableDaily.size() == 2) {
+if (listRepeatableDaily.size() >= 2) {
 	def commentRepeatableDaily = """Этот алерт возможно повторяется каждый день. За последнюю неделю найдены следующие заявки, приходящие примерно в одно время:
     """
     listRepeatableDaily.each {result ->; commentRepeatableDaily += """ ${result.key} - ${result.summary} *Created:* ${result.created.toString().replaceAll(":.{2}[.].{1}", "")} *Resolved:* ${if (result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")) == null) {return "Not resolved"} else {result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")).toString().replaceAll(":.{2}[.].{1}", "")}} 
@@ -241,13 +242,14 @@ if (listRepeatableDaily.size() == 2) {
 	makeComment(commentRepeatableDaily, user, visibility)
 }
 
-if (listRepeatableDaily.size() >= 3 && resultsOpenedLinkedHit.total == 0 ) {
+if (listRepeatableDaily.size() >= 3 && resultsOpenedLinkedHit.total == 0 && !ticketCreatedFlag) {
     String dailyProblemSummary = "[RPTISSUE] ${issue.summary.replaceAll("Zabbix.* - |Prometheus |test|prod|preprod|dev", "")}" //this variable can be used to choose summary based on some condition, e.g based on projectName. Currently is just removes some words from issue summary based on my needs
 	createLinkedProblem(listRepeatableDaily, "Problem", dailyProblemSummary, "Normal", "Найден ежедневно повторяющийся алерт", projectName, user, visibility)
+    ticketCreatedFlag = true
 }
 
 
-if (listRepeatableWeekly.size() > 1 && listRepeatableDaily.size() < 5) {
+if (listRepeatableWeekly.size() >= 1) {
 	def commentRepeatableWeekly = """Этот алерт возможно повторяется каждую неделю. За последние 4 недели найдены следующие заявки, приходящие примерно в одно время:
     """
     listRepeatableWeekly.each {result ->; commentRepeatableWeekly += """ ${result.key} - ${result.summary} *Created:* ${result.created.toString().replaceAll(":.{2}[.].{1}", "")} *Resolved:* ${if (result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")) == null) {return "Not resolved"} else {result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")).toString().replaceAll(":.{2}[.].{1}", "")}} 
@@ -256,3 +258,8 @@ if (listRepeatableWeekly.size() > 1 && listRepeatableDaily.size() < 5) {
 	makeComment(commentRepeatableWeekly, user, visibility)
 }
 
+if (listRepeatableWeekly.size() >= 2 && resultsOpenedLinkedHit.total == 0 && !ticketCreatedFlag) {
+    String weeklyProblemSummary = "[RPTISSUE] ${issue.summary.replaceAll("Zabbix.* - |Prometheus |test|prod|preprod|dev", "")}" //this variable can be used to choose summary based on some condition, e.g based on projectName. Currently is just removes some words from issue summary based on my needs
+	createLinkedProblem(listRepeatableWeekly, "Problem", weeklyProblemSummary, "Normal", "Найден еженедельно повторяющийся алерт", projectName, user, visibility)
+    ticketCreatedFlag = true
+}
