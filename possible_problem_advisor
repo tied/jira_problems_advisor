@@ -16,6 +16,13 @@ def jqlToUrl (String jql) {
 }
 
 
+/*
+AFAIK, 'issue' is the only "variable" that can be used inside the methods without additional declaring.
+'issue' always adresses the issue which triggered the rule.
+*/
+ 
+
+
 def issueComponent = ruleContext.renderSmartValues('{{issue.components.first.name}}')
 def jqlQueryParser = ComponentAccessor.getComponent(JqlQueryParser)
 def searchService = ComponentAccessor.getComponent(SearchService.class)
@@ -26,12 +33,92 @@ def projectName = "${issue.key}".replaceAll(/-.*/, "")
 def visibility = "Staff only" //Name of the visibility group for comment. Default is for Project Roles name. Should be replaced with proper. It may be not useful for someone. You can just comment it out. Also you need to change makeComment function. 
 def Integer repeatableCheckGap = 15 // this set time gap in minutes for finding repeatable issues
 
-def makeComment (String commentText, com.atlassian.jira.user.ApplicationUser commentUser, String vis) {
+
+def makeComment (String commentText, com.atlassian.jira.user.ApplicationUser commentUser, String vis) { //this method is for commenting only the issue which triggered the rule. TODO: need to be rewritten to be able to comment other issues.
 	//only one line should be here. Commented lines are replacements in case you need other comment visibility options.
 	ComponentAccessor.commentManager.create(issue, commentUser, commentText, null,ComponentAccessor.getComponent(ProjectRoleManager).getProjectRole("${vis}").getId(), true) //comment this line if you don't need visibility functionality.
 	//ComponentAccessor.commentManager.create(issue, commentUser, commentText, vis, null, true) //uncomment this line, and 'visibility' variable will set comment visibility for names of global user groups (from User Management tab)
 	//ComponentAccessor.commentManager.create(issue, commentUser, commentText, null, null, true) //uncomment this line if you don't need visibility functionality. All comments will have default visibility.
 }
+
+
+/*
+Function for linked problem creation
+Example: createLinkedProblem(listRepeatableDaily, "Problem", "Test", "Normal", "Найден ежедневно повторяющийся алерт", projectName, user, visibility)
+This will create Problem with summary Test, priority Normal. Description will be like:
+
+Найден ежедневно повторяющийся алерт.
+ISSUEKEY - ISSUESUMMARY Created: 1970-01-01 00:00 Resolved: 1970-01-01 00:05
+ISSUEKEY - ISSUESUMMARY Created: 1970-01-01 00:00 Resolved: 1970-01-01 00:05
+ISSUEKEY - ISSUESUMMARY Created: 1970-01-01 00:00 Resolved: 1970-01-01 00:05
+ISSUEKEY - ISSUESUMMARY Created: 1970-01-01 00:00 Resolved: 1970-01-01 00:05
+ISSUEKEY - ISSUESUMMARY Created: 1970-01-01 00:00 Resolved: 1970-01-01 00:05
+ISSUEKEY - ISSUESUMMARY Created: 1970-01-01 00:00 Resolved: 1970-01-01 00:05
+ISSUEKEY - ISSUESUMMARY Created: 1970-01-01 00:00 Resolved: 1970-01-01 00:05
+
+Issue keys are took from incidentList (the first variable)+the issue which triggered the problem creation.
+problemProjectName is for project to create issue in
+user is comments' author and issue reporter.
+visibility is for comments visibility
+
+After issue creation all issues from incidentList and the issue which triggered the rule will get linked to Problem as 'is caused by' in problem.
+
+You can set created Problem summary based on issue's description like so (just example):
+
+String dailyProblemSummary = "[RPTISSUE] ${listRepeatableDaily.summary.get(0).replaceAll("Zabbix.* - |Prometheus |test|prod|preprod|dev", "")}"
+
+TODO: need to rewrite it, to be able to work when incidentList is null.
+*/
+
+def createLinkedProblem	 (List<Issue> incidentList, String issueTypeName, String problemSummary, String priorityName, String shortDesc, String problemProjectName, com.atlassian.jira.user.ApplicationUser problemAuthor, String commentsVisibility) {
+	def issueService = ComponentAccessor.issueService
+	def constantsManager = ComponentAccessor.constantsManager
+	def prioritySchemeManager = ComponentAccessor.getComponent(PrioritySchemeManager)
+	def project = ComponentAccessor.projectManager.getProjectObjByKey(problemProjectName)
+	assert project : "Could not find project with key $project"
+	def description =shortDesc+""".
+    """
+    incidentList.each {result ->; description += """ ${result.key} - ${result.summary} Created: ${result.created.toString().replaceAll(":.{2}[.].{1}", "")} Resolved: ${if (result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")) == null) {return "Not resolved"} else {result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")).toString().replaceAll(":.{2}[.].{1}", "")}} 
+    """}
+	description += """ """
+	
+	def issueType = constantsManager.allIssueTypeObjects.findByName(issueTypeName)
+	assert issueType : "Could not find issue type with name $issueTypeName"
+
+	
+	//next is some jira magic for preparing issueNewProblem to be created
+	def issueContext = new IssueContextImpl(project, issueType) as IssueContext
+	def priorityId = constantsManager.priorities.findByName(priorityName)?.id ?: prioritySchemeManager.getDefaultOption(issueContext)
+    def component = ComponentAccessor.getProjectComponentManager().findByComponentName(project.getId(), ruleContext.renderSmartValues('{{issue.components.first.name}}'))
+	def issueNewProblem = ComponentAccessor.getIssueFactory().getIssue()
+	issueNewProblem.setProjectId(project.id)
+    issueNewProblem.setComponent([component])
+	issueNewProblem.setIssueTypeId(issueType.id)
+	issueNewProblem.setReporterId(problemAuthor.name)
+    issueNewProblem.setFixVersions(issue.fixVersions)
+	issueNewProblem.setSummary(problemSummary)
+	issueNewProblem.setPriorityId(priorityId)
+	issueNewProblem.setDescription(description)
+	def subTask = ComponentAccessor.getIssueManager().createIssueObject(problemAuthor, issueNewProblem) //this one finally creates the issueNewProblem, and after that line we can address it as regular issue
+	
+    def commentAboutCreatedProblem = shortDesc+". Создан ${issueTypeName} ${issueNewProblem.key}"
+    makeComment(commentAboutCreatedProblem, problemAuthor, commentsVisibility)
+	
+	//linking the 'issue' which triggered the rule
+	def linkType = ComponentAccessor.getComponent(IssueLinkTypeManager).issueLinkTypes.findByName("Problem/Incident")
+    def sourceIssue = ComponentAccessor.issueManager.getIssueByCurrentKey("${issue.key}")
+    def destinationIssue = ComponentAccessor.issueManager.getIssueByCurrentKey(issueNewProblem.key)
+    ComponentAccessor.issueLinkManager.createIssueLink(sourceIssue.id, destinationIssue.id, linkType.id, 1L, problemAuthor)
+	
+	//linking all issues from incidentList
+	incidentList.each {result ->;
+	sourceIssue = ComponentAccessor.issueManager.getIssueByCurrentKey(result.key)
+	ComponentAccessor.issueLinkManager.createIssueLink(sourceIssue.id, destinationIssue.id, linkType.id, 1L, problemAuthor)
+	}
+}
+
+
+//Next part is for simple jql based analyze of issue. Lots of comments and all is based on 'if' conditions. TODO: rewrite it to be a bit more human-friendly
 
 def queryWithoutLinkLast2Days = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND issueLinkType != causes AND createdDate > -48h AND issuekey != ${issue.key} ORDER BY created DESC"
 def queryOpenedProblems = "type != Incident AND project = ${projectName} AND issueFunction in linkedIssuesOf(\"type=Incident AND component = ${issueComponent}\", causes) AND status != Closed ORDER BY created DESC"
@@ -102,13 +189,17 @@ if (resultsOpenIncidents.total > 2) {
 }
 
 
+//All next part is related to repeatable issues analyze
+
 def createdDateValue = new Date()
 
 List<Issue> listRepeatableDaily = new ArrayList<Issue>()
 for (Integer i = 1; i < 8; i++) {
-   //Next two lines are ugly as hell, but it works. Probably did a bad job trying to match all those timestamps/dates and JQL requirements. Will mark it as TODO, this definetely can and must be simplified.
-   //replaceAll at the end is required since JQL don't want to work when Timestamp has seconds and milliseconds, so this regexp just removes them.
-   //also defining variables in each iteration feels wrong to me, TODO rewriting that part.
+   /*
+   Next two lines are ugly as hell, but it works. Probably did a bad job trying to match all those timestamps/dates and JQL requirements. Will mark it as TODO, this definetely can and must be simplified.
+   replaceAll at the end is required since JQL don't want to work when Timestamp has seconds and milliseconds, so this regexp just removes them.
+   also defining variables in each iteration feels wrong to me, TODO rewriting that part.
+   */
    def dailyCheckFrom = "${(new Date(createdDateValue.getTime()- i*(86400000) - repeatableCheckGap*60*1000)).toTimestamp()}".replaceAll(":.{2}[.].{3}", "") //this sets starting time to find repeatable issues. 86400000 is 24hours in milliseconds.
    def dailyCheckTill = "${(new Date(createdDateValue.getTime()- i*(86400000) + repeatableCheckGap*60*1000)).toTimestamp()}".replaceAll(":.{2}[.].{3}", "") //this sets ending time to find repeatable issues. 86400000 is 24hours in milliseconds
    def queryRepeatableDaily = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND summary ~ \"${ruleContext.renderSmartValues('{{issue.summary}}')}\" AND createdDate > \"${dailyCheckFrom}\" and createdDate < \"${dailyCheckTill}\" ORDER BY created DESC"
@@ -136,10 +227,12 @@ for (Integer i = 1; i < 5; i++) {
    }
 }
 
-//The next thing 'result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time"))' is to get a date from custom field used in our company. It can be safely replaced with 'result.resolutiondate' or any other.
-//This whole if construction afterwards is just to avoid 'null' in comment output.
-//replaceAll(":.{2}[.].{1}", "") is for beautify only, I don't need seconds and milliseconds.
-if (listRepeatableDaily.size() > 2 && listRepeatableDaily.size() < 6) {
+/*
+The next thing 'result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time"))' is to get a date from custom field used in our company. It can be safely replaced with 'result.resolutiondate' or any other.
+This whole 'if' construction afterwards is just to avoid 'null' in comment output.
+replaceAll(":.{2}[.].{1}", "") is for beautify only, I don't need seconds and milliseconds. 
+*/
+if (listRepeatableDaily.size() > 2 && listRepeatableDaily.size() < 4) {
 	def commentRepeatableDaily = """Этот алерт возможно повторяется каждый день. За последнюю неделю найдены следующие заявки, приходящие примерно в одно время:
     """
     listRepeatableDaily.each {result ->; commentRepeatableDaily += """ ${result.key} - ${result.summary} *Created:* ${result.created.toString().replaceAll(":.{2}[.].{1}", "")} *Resolved:* ${if (result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")) == null) {return "Not resolved"} else {result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")).toString().replaceAll(":.{2}[.].{1}", "")}} 
@@ -147,6 +240,12 @@ if (listRepeatableDaily.size() > 2 && listRepeatableDaily.size() < 6) {
 	commentRepeatableDaily += """Проверьте вышенайденные заявки, и если необходимо создайте Problem для исследования."""
 	makeComment(commentRepeatableDaily, user, visibility)
 }
+
+if (listRepeatableDaily.size() >= 4 && resultsOpenedLinkedHit.total == 0 ) {
+    String dailyProblemSummary = "[RPTISSUE] ${issue.summary.replaceAll("Zabbix.* - |Prometheus |test|prod|preprod|dev", "")}" //this variable can be used to choose summary based on some condition, e.g based on projectName. Currently is just removes some words from issue summary based on my needs
+	createLinkedProblem(listRepeatableDaily, "Problem", dailyProblemSummary, "Normal", "Найден ежедневно повторяющийся алерт", projectName, user, visibility)
+}
+
 
 if (listRepeatableWeekly.size() > 1 && listRepeatableDaily.size() < 3) {
 	def commentRepeatableWeekly = """Этот алерт возможно повторяется каждую неделю. За последние 4 недели найдены следующие заявки, приходящие примерно в одно время:
@@ -157,52 +256,3 @@ if (listRepeatableWeekly.size() > 1 && listRepeatableDaily.size() < 3) {
 	makeComment(commentRepeatableWeekly, user, visibility)
 }
 
-if (listRepeatableDaily.size() > 6 && resultsOpenedLinkedHit.total == 0 ) {
-	def issueTypeName = 'Problem'	
-	def summary = "[RPTISSUE] ${listRepeatableDaily.summary.get(0).replaceAll("Zabbix.* - |Prometheus |test|prod|preprod|dev", "")}"
-	def priorityName = 'Normal'
-
-	def issueService = ComponentAccessor.issueService
-	def constantsManager = ComponentAccessor.constantsManager
-	def prioritySchemeManager = ComponentAccessor.getComponent(PrioritySchemeManager)
-	def project = ComponentAccessor.projectManager.getProjectObjByKey(projectName)
-	def description = """Исследовать повторяющийся алерт:
-    """
-    listRepeatableDaily.each {result ->; description += """ ${result.key} - ${result.summary} Created: ${result.created.toString().replaceAll(":.{2}[.].{1}", "")} Resolved: ${if (result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")) == null) {return "Not resolved"} else {result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")).toString().replaceAll(":.{2}[.].{1}", "")}} 
-    """}
-	description += """ """
-	assert project : "Could not find project with key $project"
-
-	def issueType = constantsManager.allIssueTypeObjects.findByName(issueTypeName)
-	assert issueType : "Could not find issue type with name $issueTypeName"
-
-	// if we cannot find the priority with the given name or if this is null, then set the default priority
-	def issueContext = new IssueContextImpl(project, issueType) as IssueContext
-	def priorityId = constantsManager.priorities.findByName(priorityName)?.id ?: prioritySchemeManager.getDefaultOption(issueContext)
-    def component = ComponentAccessor.getProjectComponentManager().findByComponentName(project.getId(), "${issueComponent}")
-	def issueNewProblem = ComponentAccessor.getIssueFactory().getIssue()
-    def projectid = issue.getFixVersions().iterator().next().getId()
-	issueNewProblem.setProjectId(project.id)
-    issueNewProblem.setComponent([component])
-	issueNewProblem.setIssueTypeId(issueType.id)
-	issueNewProblem.setReporterId(user.name)
-    issueNewProblem.setFixVersions(issue.fixVersions)
-	issueNewProblem.setSummary(summary)
-	issueNewProblem.setPriorityId(priorityId)
-	issueNewProblem.setDescription(description)
-	def subTask = ComponentAccessor.getIssueManager().createIssueObject(user, issueNewProblem)
-    def commentCreatedProblem="Создан Problem ${issueNewProblem.key}"
-    makeComment(commentCreatedProblem, user, visibility)
-	def linkType = ComponentAccessor.getComponent(IssueLinkTypeManager).issueLinkTypes.findByName("Problem/Incident")
-    
-    def sourceIssue = ComponentAccessor.issueManager.getIssueByCurrentKey("${issue.key}")
-    def destinationIssue = ComponentAccessor.issueManager.getIssueByCurrentKey(issueNewProblem.key)
-    ComponentAccessor.issueLinkManager.createIssueLink(sourceIssue.id, destinationIssue.id, linkType.id, 1L, user)
-	
-	listRepeatableDaily.each {result ->;
-	sourceIssue = ComponentAccessor.issueManager.getIssueByCurrentKey(result.key)
-	ComponentAccessor.issueLinkManager.createIssueLink(sourceIssue.id, destinationIssue.id, linkType.id, 1L, user)
-	}
-	
-	
-}
