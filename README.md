@@ -2,8 +2,8 @@
 
 <div align="center">Scriptrunner's script for Technical Support Incident automation</div>
 
-<div align="center">WARNING: Script under Development and wasn't tested in any other JIRA environments except the one used in my company</div>
-<div align="center">USE IT ON YOUR OWN RISK</div>
+<div align="left">WARNING: Script under Development and wasn't tested in any other JIRA environments except the one used in my company</div>
+<div align="left">USE IT ON YOUR OWN RISK</div>
 
 ## What is this and what is it for?️
 
@@ -36,7 +36,7 @@ Diskspace / is 91% used on hostname2.domain
 Load Average is 8.5 on hostname2.domain
 Load Average is 9.3 on hostname2.domain
 ```
-- Linking must have 'Issue linking' enabled. By default script is using link name 'Problem/Incident' with Outward and Inward Description causes/is caused by respectively
+- Jira must have 'Issue linking' enabled. By default script is using link name 'Problem/Incident' with Outward and Inward Description causes/is caused by respectively
 
 ## What it can do?
 
