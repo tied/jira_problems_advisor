@@ -2,8 +2,8 @@
 
 <div align="center">Scriptrunner's script for Technical Support Incident automation</div>
 
-<div align="left">WARNING: Script under Development and wasn't tested in any other JIRA environments except the one used in my company</div>
-<div align="left">USE IT ON YOUR OWN RISK</div>
+<div align="left">**WARNING:** Script is under Development and wasn't tested in any other JIRA environments except the one used in my company</div>
+<div align="left">**USE IT ON YOUR OWN RISK**</div>
 
 ## What is this and what is it for?️
 
