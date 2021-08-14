@@ -218,7 +218,7 @@ if (resultsRepeatable12h.total > 3 && resultsOpenedProblems.total == 0) {
 /*
 The next thing 'result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time"))' is to get a date from custom field used in our company. It can be safely replaced with 'result.resolutiondate' or any other.
 The whole 'if' construction afterwards is just to avoid 'null' in comment output.
-replaceAll(":.{2}[.].{1}", "") is for beautify only, I don't need seconds and milliseconds. 
+replaceAll(":.{2}[.].{1,3}", "") is for beautify only, I don't need seconds and milliseconds. 
 */
 if (listRepeatableDaily.size() >= 2) {
 	def commentRepeatableDaily = """Этот алерт возможно повторяется каждый день. За последнюю неделю найдены следующие заявки, приходящие примерно в одно время:"""+newLine
