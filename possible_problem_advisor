@@ -160,7 +160,7 @@ def queryOpenedProblems = "type != Incident AND project = ${projectName} AND iss
 def queryRepeatable12h = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND summary ~ \"${currentIssue.summary}\" AND createdDate > -12h ORDER BY created DESC"
 def queryOpenedLinkedHit = "type != Incident AND project = ${projectName} AND issueFunction in linkedIssuesOf(\"type=Incident AND component = ${issueComponent} and summary ~\'${currentIssue.summary}\'\", causes) AND status != Closed ORDER BY created DESC"
 def queryOpenIncidents = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND status != Closed ORDER BY created DESC"
-def queryRepeatable48h = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND summary ~ \"${currentIssue.summary}\" AND createdDate > -48h ORDER BY created DESC"
+def queryRepeatable48h = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND summary ~ \"${currentIssue.summary}\" AND createdDate > -48h AND issuekey != ${currentIssue.key} AND issueLinkType != causes ORDER BY created DESC"
 
 def resultsWithoutLinkLast2Days = searchService.search(user, jqlQueryParser.parseQuery(queryWithoutLinkLast2Days), pager)
 def resultsOpenedProblems = searchService.search(user, jqlQueryParser.parseQuery(queryOpenedProblems), pager)
@@ -257,7 +257,7 @@ if (resultsOpenedLinkedHit.total == 1) {
 	makeComment(currentIssue, commentIssueLinked, user, visibility)
 }
 
-if (resultsRepeatable48h.total > 4 && resultsOpenedLinkedHit.total == 0 && !ticketCreatedFlag) {
+if (resultsRepeatable48h.total > 3 && resultsOpenedLinkedHit.total == 0 && !ticketCreatedFlag) {
     String tooMuchSameIncidents = "[RPTISSUE] ${currentIssue.summary.replaceAll("Zabbix.* - |Prometheus |test|prod|preprod|dev", "")}" //this variable can be used to choose summary based on some condition, e.g based on projectName. Currently is just removes some words from issue summary based on my needs
 	createLinkedProblem(currentIssue, resultsRepeatable48h.getResults(), "Problem", tooMuchSameIncidents, "High", "Алерт приходит слишком часто последние 2 суток", projectName, user, visibility)
     ticketCreatedFlag = true //Can be removed from the code in case creating multiple issues is required.
