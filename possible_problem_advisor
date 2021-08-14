@@ -32,6 +32,13 @@ def createdDateValue = new Date()
 def visibility = "Staff only" //Name of the visibility group for comment. Default is for Project Roles name. Should be replaced with proper. It may be not useful for someone. You can just comment it out. Also you need to change makeComment function. 
 def Integer repeatableCheckGap = 15 // this set time gap in minutes for finding repeatable issues
 
+//just...just don't ask, ok?
+def String emptyLine = """
+
+"""
+def String newLine = """
+""" 
+//end of strange code
 
 def makeComment (Issue issueToComment, String commentText, com.atlassian.jira.user.ApplicationUser commentUser, String vis) {  //at this point I'm not sure why do I need this method. Probably only because it looks more humanfriendly in code
 	//only one line should be here. Commented lines are replacements in case you need other comment visibility options.
@@ -161,19 +168,14 @@ def resultsOpenedLinkedHit = searchService.search(user, jqlQueryParser.parseQuer
 def resultsOpenIncidents = searchService.search(user, jqlQueryParser.parseQuery(queryOpenIncidents), pager)
 
 //Next part is related to repeatable issues analyze. 
-//TODO: rewrite it into method.
-
 List<Issue> listRepeatableDaily = new ArrayList<Issue>()
 listRepeatableDaily = findRepeatableIssues (7, 1, repeatableCheckGap, currentIssue)
-
-
 List<Issue> listRepeatableWeekly = new ArrayList<Issue>()
 listRepeatableWeekly = findRepeatableIssues (5, 7, repeatableCheckGap, currentIssue)
 
-
 /* 
 The part with comments.
-Unfortunately at this point all those if's seem to be required, since I'm not only giving the information, but also making comment decisions based on results combinations. 
+Unfortunately at this point all those if's seem to be required, since I'm not only giving raw information, but also making comment decisions based on results combinations. 
 And AFAIK there are no conditional Switch/Case in Java
 */
 
@@ -181,46 +183,34 @@ def String commentBody= ""
 
 if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total == 0 && resultsOpenedLinkedHit.total == 0) {
     commentBody += """По компоненту существуют открытые связанные заявки, в которых может производиться исследование проблем: [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]
-	Точного наличия открытого исследования по этому алерту установить не удалось.
-	
-	"""
+	Точного наличия открытого исследования по этому алерту установить не удалось."""+emptyLine
 }
 
 if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total == 0 && resultsOpenedLinkedHit.total > 0) {
     commentBody += """Найдена открытая заявка(и), в которой производится исследование этого алерта: [${resultsOpenedLinkedHit.total}|${jqlToUrl(queryOpenedLinkedHit)}]
-	Также, по компоненту существуют открытые связанные заявки (могут совпадать с вышенайденными): [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]
-	
-	"""
+	Также, по компоненту существуют открытые связанные заявки (могут совпадать с вышенайденными): [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]"""+emptyLine
 }
 
 if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total > 0 && resultsOpenedLinkedHit.total == 0) {
     commentBody += """По компоненту существуют открытые связанные заявки: [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]
 	За последние двое суток инцидентов по этому компоненту, не связанных с другими заявками: [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}]
-	Точного наличия открытого исследования по этому алерту установить не удалось. Создайте его, если это необходимо
-	
-	"""
+	Точного наличия открытого исследования по этому алерту установить не удалось. Создайте его, если это необходимо"""+emptyLine
 }
 
 if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total > 0 && resultsOpenedLinkedHit.total > 0) {
     commentBody += """Найдена открытая заявка(и), в которой производится исследование этого алерта: [${resultsOpenedLinkedHit.total}|${jqlToUrl(queryOpenedLinkedHit)}]
 	Также, по компоненту существуют открытые связанные заявки (могут совпадать с вышенайденными): [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]
-	За последние двое суток инцидентов по этому компоненту, не связанных с другими заявками: [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}]
-	
-	"""
+	За последние двое суток инцидентов по этому компоненту, не связанных с другими заявками: [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}]"""+emptyLine
 }
 
 if (resultsOpenedProblems.total == 0 && resultsWithoutLinkLast2Days.total > 5) {
     commentBody += """Открытых связанных заявок, в которых может производиться исследование, по этому компоненту не найдено, но число инцидентов с этого сервера за последние 48 часов - [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}] 
- Рассмотрите найденные заявки, возможно необходимо создать Problem.
- 
- """
+ Рассмотрите найденные заявки, возможно необходимо создать Problem."""+emptyLine
 }
 
 if (resultsRepeatable12h.total > 3 && resultsOpenedProblems.total == 0) {
     commentBody += """Открытых связанных заявок по этому компоненту не найдено, но число подобных алертов за последние 12 часов превысило 3. Текущее число: [${resultsRepeatable12h.total}|${jqlToUrl(queryRepeatable12h)}] 
- Возможно необходимо создать Problem и исследовать причину повторения алертов.
- 
- """
+ Возможно необходимо создать Problem и исследовать причину повторения алертов."""+emptyLine
 }
 
 /*
@@ -228,33 +218,23 @@ The next thing 'result.getCustomFieldValue(ComponentAccessor.getCustomFieldManag
 The whole 'if' construction afterwards is just to avoid 'null' in comment output.
 replaceAll(":.{2}[.].{1}", "") is for beautify only, I don't need seconds and milliseconds. 
 */
-if (listRepeatableDaily.size() >= 2) { //comment will trigger anyway, whether or not ticket is getting created.
-	def commentRepeatableDaily = """Этот алерт возможно повторяется каждый день. За последнюю неделю найдены следующие заявки, приходящие примерно в одно время:
-    """
-    listRepeatableDaily.each {result ->; commentRepeatableDaily += """ ${result.key} - ${result.summary} Created: ${result.created.toString().replaceAll(":.{2}[.].{1,3}", "")} Resolved: ${if (result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")) == null) {return "Not resolved"} else {result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")).toString().replaceAll(":.{2}[.].{1}", "")}} 
-    """}
-	commentRepeatableDaily += """Проверьте вышенайденные заявки, и если необходимо создайте Problem для исследования.
-	
-	"""
+if (listRepeatableDaily.size() >= 2) {
+	def commentRepeatableDaily = """Этот алерт возможно повторяется каждый день. За последнюю неделю найдены следующие заявки, приходящие примерно в одно время:"""+newLine
+    listRepeatableDaily.each {result ->; commentRepeatableDaily += """ ${result.key} - ${result.summary} Created: ${result.created.toString().replaceAll(":.{2}[.].{1,3}", "")} Resolved: ${if (result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")) == null) {return "Not resolved"} else {result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")).toString().replaceAll(":.{2}[.].{1}", "")}}"""+newLine}
+	commentRepeatableDaily += """Проверьте вышенайденные заявки, и если необходимо создайте Problem для исследования."""+emptyLine
 	commentBody += commentRepeatableDaily
 }
 
-if (listRepeatableWeekly.size() >= 2) { //comment will trigger anyway, whether or not ticket is getting created.
-	def commentRepeatableWeekly = """Этот алерт возможно повторяется каждую неделю. За последние 4 недели найдены следующие заявки, приходящие примерно в одно время:
-    """
-    listRepeatableWeekly.each {result ->; commentRepeatableWeekly += """ ${result.key} - ${result.summary} Created: ${result.created.toString().replaceAll(":.{2}[.].{1,3}", "")} Resolved: ${if (result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")) == null) {return "Not resolved"} else {result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")).toString().replaceAll(":.{2}[.].{1}", "")}} 
-    """}
-	commentRepeatableWeekly += """Проверьте вышенайденные заявки, и если необходимо создайте Problem для исследования.
-	
-	"""
+if (listRepeatableWeekly.size() >= 2) {
+	def commentRepeatableWeekly = """Этот алерт возможно повторяется каждую неделю. За последние 4 недели найдены следующие заявки, приходящие примерно в одно время:"""+newLine
+    listRepeatableWeekly.each {result ->; commentRepeatableWeekly += """ ${result.key} - ${result.summary} Created: ${result.created.toString().replaceAll(":.{2}[.].{1,3}", "")} Resolved: ${if (result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")) == null) {return "Not resolved"} else {result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")).toString().replaceAll(":.{2}[.].{1}", "")}}"""+newLine}
+	commentRepeatableWeekly += """Проверьте вышенайденные заявки, и если необходимо создайте Problem для исследования."""+emptyLine
 	commentBody += commentRepeatableWeekly
 }
 
 if (resultsOpenIncidents.total > 2) {
-	commentBody += """Обнаружены открытые алерты по этому компоненту. Текущее число: [${resultsOpenIncidents.total}|${jqlToUrl(queryOpenIncidents)}] 
- *Возможно проблемы не ограничиваются этим алертом и необходимо исследовать ситуацию в комплексе*
- 
- """
+	commentBody += """*Обнаружены открытые алерты по этому компоненту. Текущее число:* [${resultsOpenIncidents.total}|${jqlToUrl(queryOpenIncidents)}] 
+ *Возможно проблемы не ограничиваются этим алертом и необходимо исследовать ситуацию в комплексе*"""+emptyLine
 }
 
 if (commentBody !=  "") {
