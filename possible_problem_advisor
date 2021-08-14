@@ -129,6 +129,7 @@ It will complete the same 7 times.
 The result of the function is a list of issues which were found.
 */
 
+
 public List<Issue>  findRepeatableIssues (Integer numberOfSteps, Integer stepDurationDays, Integer minutesGap, Issue issueAnalyzed) {
    List<Issue> listRepeatable = new ArrayList<Issue>()
    for (Integer i = 1; i < numberOfSteps+1; i++) {
@@ -159,12 +160,14 @@ def queryOpenedProblems = "type != Incident AND project = ${projectName} AND iss
 def queryRepeatable12h = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND summary ~ \"${currentIssue.summary}\" AND createdDate > -12h ORDER BY created DESC"
 def queryOpenedLinkedHit = "type != Incident AND project = ${projectName} AND issueFunction in linkedIssuesOf(\"type=Incident AND component = ${issueComponent} and summary ~\'${currentIssue.summary}\'\", causes) AND status != Closed ORDER BY created DESC"
 def queryOpenIncidents = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND status != Closed ORDER BY created DESC"
+def queryRepeatable48h = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND summary ~ \"${currentIssue.summary}\" AND createdDate > -48h ORDER BY created DESC"
 
 def resultsWithoutLinkLast2Days = searchService.search(user, jqlQueryParser.parseQuery(queryWithoutLinkLast2Days), pager)
 def resultsOpenedProblems = searchService.search(user, jqlQueryParser.parseQuery(queryOpenedProblems), pager)
 def resultsRepeatable12h = searchService.search(user, jqlQueryParser.parseQuery(queryRepeatable12h), pager)
 def resultsOpenedLinkedHit = searchService.search(user, jqlQueryParser.parseQuery(queryOpenedLinkedHit), pager)
 def resultsOpenIncidents = searchService.search(user, jqlQueryParser.parseQuery(queryOpenIncidents), pager)
+def resultsRepeatable48h = searchService.search(user, jqlQueryParser.parseQuery(queryRepeatable48h), pager)
 
 //Next part is related to repeatable issues analyze. 
 List<Issue> listRepeatableDaily = new ArrayList<Issue>()
@@ -244,8 +247,6 @@ makeComment(currentIssue, commentBody, user, visibility)
 Part with actions, like creating tickets or linking
 */
 
-//TODO: Same idea as for comments part. I need only one createLinkedProblem call. After that can add new functionality.
-
 if (resultsOpenedLinkedHit.total == 1) {
     def linkType = ComponentAccessor.getComponent(IssueLinkTypeManager).issueLinkTypes.findByName("Problem/Incident")
     def destinationIssue = ComponentAccessor.issueManager.getIssueByCurrentKey(resultsOpenedLinkedHit.results.key.get(0))
@@ -254,6 +255,12 @@ if (resultsOpenedLinkedHit.total == 1) {
     String commentIssueLinked = """Заявка прикреплена к ${destinationIssue}.
     Проверьте ${destinationIssue} и убедитесь что этот алерт с ним связан. Удалите связь, если прикрепление ошибочно."""
 	makeComment(currentIssue, commentIssueLinked, user, visibility)
+}
+
+if (resultsRepeatable48h.total > 4 && resultsOpenedLinkedHit.total == 0 && !ticketCreatedFlag) {
+    String tooMuchSameIncidents = "[RPTISSUE] ${currentIssue.summary.replaceAll("Zabbix.* - |Prometheus |test|prod|preprod|dev", "")}" //this variable can be used to choose summary based on some condition, e.g based on projectName. Currently is just removes some words from issue summary based on my needs
+	createLinkedProblem(currentIssue, resultsRepeatable48h.getResults(), "Problem", tooMuchSameIncidents, "High", "Алерт приходит слишком часто последние 2 суток", projectName, user, visibility)
+    ticketCreatedFlag = true //Can be removed from the code in case creating multiple issues is required.
 }
 
 if (listRepeatableDaily.size() >= 3 && resultsOpenedLinkedHit.total == 0 && !ticketCreatedFlag) {
@@ -267,3 +274,4 @@ if (listRepeatableWeekly.size() >= 2 && resultsOpenedLinkedHit.total == 0 && !ti
 	createLinkedProblem(currentIssue, listRepeatableWeekly, "Problem", weeklyProblemSummary, "Normal", "Найден еженедельно повторяющийся алерт", projectName, user, visibility)
     ticketCreatedFlag = true //Can be removed from the code in case creating multiple issues is required.
 }
+
