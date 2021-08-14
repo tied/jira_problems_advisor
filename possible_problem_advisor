@@ -106,7 +106,6 @@ def createLinkedProblem	 (Issue rootIssue, List<Issue> incidentList, String issu
 	
 	//linking the 'issue' which triggered the rule
 	def linkType = ComponentAccessor.getComponent(IssueLinkTypeManager).issueLinkTypes.findByName("Problem/Incident")
-    //def sourceIssue = ComponentAccessor.issueManager.getIssueByCurrentKey("${issue.key}")
     def destinationIssue = ComponentAccessor.issueManager.getIssueByCurrentKey(issueNewProblem.key)
     ComponentAccessor.issueLinkManager.createIssueLink(rootIssue.id, destinationIssue.id, linkType.id, 1L, problemAuthor)
 	
@@ -115,6 +114,35 @@ def createLinkedProblem	 (Issue rootIssue, List<Issue> incidentList, String issu
 	def sourceIssue = ComponentAccessor.issueManager.getIssueByCurrentKey(result.key)
 	ComponentAccessor.issueLinkManager.createIssueLink(sourceIssue.id, destinationIssue.id, linkType.id, 1L, problemAuthor)
 	}
+}
+
+/*
+findRepeatableIssues - simple function for finding patterns in incoming incidents. Finds repeatable issues with same component and description based on settings. E.g.:
+findRepeatableIssues (7, 1, 15, currentIssue) will subtract 1 day from currentIssue's created day and will check +-15minutes period of time. If it finds 1 issue with same component and summary in that period - it will write it to the list.
+It will complete the same 7 times.
+The result of the function is a list of issues which were found.
+*/
+
+public List<Issue>  findRepeatableIssues (Integer numberOfSteps, Integer stepDurationDays, Integer minutesGap, Issue issueAnalyzed) {
+   List<Issue> listRepeatable = new ArrayList<Issue>()
+   for (Integer i = 1; i < numberOfSteps+1; i++) {
+   /*
+   Next two lines are ugly as hell, but it works. Probably did a bad job trying to match all those timestamps/dates and JQL requirements. Will mark it as TODO, this definetely can and must be simplified.
+   replaceAll at the end is required since JQL don't want to work when Timestamp has seconds and milliseconds, so this regexp just removes them.
+   also defining variables in each iteration feels wrong to me, TODO rewriting that part.
+   */
+   		def checkFrom = "${(new Date(issueAnalyzed.created.getTime() - i*(stepDurationDays*86400000) - minutesGap*60*1000)).toTimestamp()}".replaceAll(":.{2}[.].{1,3}", "") //this sets starting time to find repeatable issues. 86400000 is 24hours in milliseconds.
+   		def checkTill = "${(new Date(issueAnalyzed.created.getTime()- i*(stepDurationDays*86400000) + minutesGap*60*1000)).toTimestamp()}".replaceAll(":.{2}[.].{1,3}", "") //this sets ending time to find repeatable issues. 86400000 is 24hours in milliseconds
+   		log.debug "${checkFrom}"
+       	log.debug "${checkTill}"
+   		def queryRepeatable = "type = Incident AND project = ${"${issueAnalyzed.key}".replaceAll(/-.*/, "")} AND component = ${issueAnalyzed.getComponents().head().name} AND summary ~ \"${issueAnalyzed.summary}\" AND createdDate > \"${checkFrom}\" and createdDate < \"${checkTill}\" ORDER BY created DESC"
+   		def resultsRepeatable = ComponentAccessor.getComponent(SearchService.class).search(ComponentAccessor.getJiraAuthenticationContext().getLoggedInUser(), ComponentAccessor.getComponent(JqlQueryParser).parseQuery(queryRepeatable), PagerFilter.getUnlimitedFilter())
+   		if (resultsRepeatable.total == 1) { //maybe should use > 1 instead. In such case, need to change listRepeatableDaily defining to work with all results (not only the first as now). But in current design and workload I need == 1. Can hardly imagine more than 1 incident for Component + Summary created in 30 minutes gap per Project.
+       		listRepeatable.add(resultsRepeatable.results.get(0))
+   		}
+   
+	}
+    return listRepeatable
 }
 
 
@@ -136,33 +164,11 @@ def resultsOpenIncidents = searchService.search(user, jqlQueryParser.parseQuery(
 //TODO: rewrite it into method.
 
 List<Issue> listRepeatableDaily = new ArrayList<Issue>()
-for (Integer i = 1; i < 8; i++) {
-   /*
-   Next two lines are ugly as hell, but it works. Probably did a bad job trying to match all those timestamps/dates and JQL requirements. Will mark it as TODO, this definetely can and must be simplified.
-   replaceAll at the end is required since JQL don't want to work when Timestamp has seconds and milliseconds, so this regexp just removes them.
-   also defining variables in each iteration feels wrong to me, TODO rewriting that part.
-   */
-   def dailyCheckFrom = "${(new Date(createdDateValue.getTime()- i*(86400000) - repeatableCheckGap*60*1000)).toTimestamp()}".replaceAll(":.{2}[.].{1,3}", "") //this sets starting time to find repeatable issues. 86400000 is 24hours in milliseconds.
-   def dailyCheckTill = "${(new Date(createdDateValue.getTime()- i*(86400000) + repeatableCheckGap*60*1000)).toTimestamp()}".replaceAll(":.{2}[.].{1,3}", "") //this sets ending time to find repeatable issues. 86400000 is 24hours in milliseconds
-   def queryRepeatableDaily = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND summary ~ \"${currentIssue.summary}\" AND createdDate > \"${dailyCheckFrom}\" and createdDate < \"${dailyCheckTill}\" ORDER BY created DESC"
-   def resultsRepeatableDaily = searchService.search(user, jqlQueryParser.parseQuery(queryRepeatableDaily), pager)
-   if (resultsRepeatableDaily.total == 1) { //maybe should use > 1 instead. In such case, need to change listRepeatableDaily defining to work with all results (not only the first as now). But in current design and workload I need == 1. Can hardly imagine more than 1 incident for Component + Summary created in 30 minutes gap per Project.
-       listRepeatableDaily.add(resultsRepeatableDaily.results.get(0))
-   }
-}
+listRepeatableDaily = findRepeatableIssues (7, 1, repeatableCheckGap, currentIssue)
 
 
 List<Issue> listRepeatableWeekly = new ArrayList<Issue>()
-
-for (Integer i = 1; i < 5; i++) {
-   def weeklyCheckFrom = "${(new Date(createdDateValue.getTime()- i*(604800000) - repeatableCheckGap*60*1000)).toTimestamp()}".replaceAll(":.{2}[.].{1,3}", "") //this sets starting time to find repeatable issues. 604800000 is 7days in milliseconds.
-   def weeklyCheckTill = "${(new Date(createdDateValue.getTime()- i*(604800000) + repeatableCheckGap*60*1000)).toTimestamp()}".replaceAll(":.{2}[.].{1,3}", "") //this sets ending time to find repeatable issues. 604800000 is 24hours in milliseconds
-   def queryRepeatableWeekly = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND summary ~ \"${currentIssue.summary}\" AND createdDate > \"${weeklyCheckFrom}\" and createdDate < \"${weeklyCheckTill}\" ORDER BY created DESC"
-   def resultsRepeatableWeekly = searchService.search(user, jqlQueryParser.parseQuery(queryRepeatableWeekly), pager)
-   if (resultsRepeatableWeekly.total == 1) { //maybe should use > 1 instead. In such case, need to change commentRepeatableWeekly defining to work with all results (not only the first as now). But in current design and workload I need == 1. Can hardly imagine more than 1 incident for Component + Summary created in 30 minutes gap per Project.
-		listRepeatableWeekly.add(resultsRepeatableWeekly.results.get(0))
-   }
-}
+listRepeatableWeekly = findRepeatableIssues (5, 7, repeatableCheckGap, currentIssue)
 
 
 /* 
@@ -198,7 +204,9 @@ if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total > 0 && 
 if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total > 0 && resultsOpenedLinkedHit.total > 0) {
     commentBody += """Найдена открытая заявка(и), в которой производится исследование этого алерта: [${resultsOpenedLinkedHit.total}|${jqlToUrl(queryOpenedLinkedHit)}]
 	Также, по компоненту существуют открытые связанные заявки (могут совпадать с вышенайденными): [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]
-	За последние двое суток инцидентов по этому компоненту, не связанных с другими заявками: [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}]"""
+	За последние двое суток инцидентов по этому компоненту, не связанных с другими заявками: [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}]
+	
+	"""
 }
 
 if (resultsOpenedProblems.total == 0 && resultsWithoutLinkLast2Days.total > 5) {
@@ -244,7 +252,7 @@ if (listRepeatableWeekly.size() >= 2) { //comment will trigger anyway, whether o
 
 if (resultsOpenIncidents.total > 2) {
 	commentBody += """Обнаружены открытые алерты по этому компоненту. Текущее число: [${resultsOpenIncidents.total}|${jqlToUrl(queryOpenIncidents)}] 
- Возможно проблемы не ограничиваются этим алертом и необходимо исследовать ситуацию в комплексе
+ *Возможно проблемы не ограничиваются этим алертом и необходимо исследовать ситуацию в комплексе*
  
  """
 }
@@ -280,4 +288,3 @@ if (listRepeatableWeekly.size() >= 2 && resultsOpenedLinkedHit.total == 0 && !ti
 	createLinkedProblem(currentIssue, listRepeatableWeekly, "Problem", weeklyProblemSummary, "Normal", "Найден еженедельно повторяющийся алерт", projectName, user, visibility)
     ticketCreatedFlag = true //Can be removed from the code in case creating multiple issues is required.
 }
-
