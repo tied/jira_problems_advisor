@@ -64,4 +64,4 @@ If you also need problem analyzer, then create another rule
 2) Choose New Action and select 'Execute a ScriptRunner script' action.
 3) On the 'Note' enter any desciption you need. Then copy the content of 'problem_analyzer' and paste it to Script field. Wait for some time till script got analyzed. You might get one Warning and one error in timeInRed definition. Ignore it and click Save.
 4) Name your automation rule (note that it's name will appear in Issue menu) and click Turn it on.
-5) Now all selected group of users must see additional option in issues' More dropdown list.
+5) Now all selected groups of users must see additional option in issues' More dropdown list.
