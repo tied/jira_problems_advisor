@@ -50,7 +50,7 @@ Load Average is 9.3 on hostname2.domain
 ## Installation
 Since this is not a plugin, but just a couple of automation scripts, some manual steps are required to make it work. Most likely you must have Admin access to Jira, since 'Scriptrunner script' action for automation available only to Admins.
 If you worked with Jira Automation before - you probably know what you're doing. If you haven't - please be extra careful. You'd better try some of it's functionallity first to not only follow the instructions but understand what you are doing.
-0) Make sure that you fit the requirements in [What is required for it to work?](##-What-is-required-for-it-to-work?) section
+0) Make sure that you fit the requirements in [What is required for it to work?](#what-is-required-for-it-to-work) section
 1) Go to Project Settings -> Project Automation and click 'Create Rule' button
 2) In 'New Trigger' section choose 'Issue Created' and Save.
 3) In 'Add component' section choose 'New Condition' -> 'If / else block'. Click 'Add conditions...', and select 'Issue fields condition'. Select 'Creator' 'is one of' and type the user or users which are doing automated Incident creation in you Jira. Click Save.
