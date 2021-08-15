@@ -67,7 +67,8 @@ resultsAllLinkedIncidents.getResults().each {result ->;
     else {
     	timeInRed = ((resolved.getTime() - created.getTime())/60/1000).intValue() //this line works. Console releases it without problems, however rules have some problems with it. Probably because of crazy type casting between two branches of 'if'.
     }
-	commentAllLinkedIncidents += """ ${result.key} - ${result.summary} Created: ${created.toString().replaceAll(":.{2}[.].{1,3}", "")} Resolved: ${resolved.toString().replaceAll(":.{2}[.].{1,3}", "")} Minutes Red: ${timeInRed}"""+newLine
+    def printedSummary=result.summary.replaceAll("Zabbix.* - |Prometheus |test|prod|preprod|dev", "") //this is just for beautification. Can make a switch-case to set it for different projects.
+	commentAllLinkedIncidents += """ ${result.key} - ${printedSummary} Created: ${created.toString().replaceAll(":.{2}[.].{1,3}", "")} Resolved: ${resolved.toString().replaceAll(":.{2}[.].{1,3}", "")} Minutes Red: ${timeInRed}"""+newLine
 }
 	commentBody += commentAllLinkedIncidents + """{code}"""+emptyLine
 
