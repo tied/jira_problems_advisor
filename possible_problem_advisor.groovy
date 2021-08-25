@@ -158,6 +158,7 @@ def queryRepeatable12h = "type = Incident AND project = ${projectName} AND compo
 def queryOpenedLinkedHit = "type != Incident AND project = ${projectName} AND issueFunction in linkedIssuesOf(\"type=Incident AND component = ${issueComponent} and summary ~\'${currentIssue.summary}\'\", causes) AND status != Closed ORDER BY created DESC"
 def queryOpenIncidents = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND status != Closed ORDER BY created DESC"
 def queryRepeatable48h = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND summary ~ \"${currentIssue.summary}\" AND createdDate > -48h AND issuekey != ${currentIssue.key} AND issueLinkType != causes ORDER BY created DESC"
+def queryRepeatable7d = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND summary ~ \"${currentIssue.summary}\" AND createdDate > -7d AND issuekey != ${currentIssue.key} AND issueLinkType != causes ORDER BY created DESC"
 
 def resultsWithoutLinkLast2Days = searchService.search(user, jqlQueryParser.parseQuery(queryWithoutLinkLast2Days), pager)
 def resultsOpenedProblems = searchService.search(user, jqlQueryParser.parseQuery(queryOpenedProblems), pager)
@@ -165,6 +166,7 @@ def resultsRepeatable12h = searchService.search(user, jqlQueryParser.parseQuery(
 def resultsOpenedLinkedHit = searchService.search(user, jqlQueryParser.parseQuery(queryOpenedLinkedHit), pager)
 def resultsOpenIncidents = searchService.search(user, jqlQueryParser.parseQuery(queryOpenIncidents), pager)
 def resultsRepeatable48h = searchService.search(user, jqlQueryParser.parseQuery(queryRepeatable48h), pager)
+def resultsRepeatable7d = searchService.search(user, jqlQueryParser.parseQuery(queryRepeatable7d), pager)
 
 //Next part is related to repeatable issues analyze. 
 List<Issue> listRepeatableDaily = new ArrayList<Issue>()
@@ -261,8 +263,15 @@ def List<Issue> listIssues
 
 if (resultsRepeatable48h.total > 3 && resultsOpenedLinkedHit.total == 0 && !createIssueFlag) {
 	listIssues = resultsRepeatable48h.getResults()
-	descriptionHeader = "Алерт приходит слишком часто последние 2 суток"
+	descriptionHeader = "Алерт приходил слишком часто за последние 2 суток"
 	linkedIssuePriority = "High" //setting non-default priority for linked issue creation
+	createIssueFlag = true 
+}
+
+if (resultsRepeatable7d.total > 5 && resultsOpenedLinkedHit.total == 0 && !createIssueFlag) {
+	listIssues = resultsRepeatable7d.getResults()
+	descriptionHeader = "Алерт приходил слишком часто за последнюю неделю"
+	linkedIssuePriority = "High"
 	createIssueFlag = true 
 }
 
