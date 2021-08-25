@@ -27,7 +27,7 @@ def searchService = ComponentAccessor.getComponent(SearchService.class)
 def pager = PagerFilter.getUnlimitedFilter()
 def user = ComponentAccessor.getJiraAuthenticationContext().getLoggedInUser()
 def projectName = "${currentIssue.key}".replaceAll(/-.*/, "")
-def Boolean ticketCreatedFlag = false //this one is to avoid creating multiple problems by this rule. 
+def Boolean createIssueFlag = false //this one is to avoid creating multiple problems by this rule. 
 def visibility = "Staff only" //Name of the visibility group for comment. Default is for Project Roles name. Should be replaced with proper. It may be not useful for someone. You can just comment it out. Also you need to change makeComment function. 
 def Integer repeatableCheckGap = 15 // this set time gap in minutes for finding repeatable issues
 
@@ -247,28 +247,40 @@ Part with actions, like creating tickets or linking
 if (resultsOpenedLinkedHit.total == 1) {
 	def linkType = ComponentAccessor.getComponent(IssueLinkTypeManager).issueLinkTypes.findByName("Problem/Incident")
 	def destinationIssue = ComponentAccessor.issueManager.getIssueByCurrentKey(resultsOpenedLinkedHit.results.key.get(0))
-	
+
 	ComponentAccessor.issueLinkManager.createIssueLink(currentIssue.id, destinationIssue.id, linkType.id, 1L, user)
 	String commentIssueLinked = """Заявка прикреплена к ${destinationIssue}.
 	Проверьте ${destinationIssue} и убедитесь что этот алерт с ним связан. Удалите связь, если прикрепление ошибочно."""
 	makeComment(currentIssue, commentIssueLinked, user, visibility)
 }
 
-if (resultsRepeatable48h.total > 3 && resultsOpenedLinkedHit.total == 0 && !ticketCreatedFlag) {
-	String tooMuchSameIncidents = "[RPTISSUE] ${currentIssue.summary.replaceAll("Zabbix.* - |Prometheus |test|prod|preprod|dev", "")}" //this variable can be used to choose summary based on some condition, e.g based on projectName. Currently is just removes some words from issue summary based on my needs
-	createLinkedProblem(currentIssue, resultsRepeatable48h.getResults(), "Problem", tooMuchSameIncidents, "High", "Алерт приходит слишком часто последние 2 суток", projectName, user, visibility)
-	ticketCreatedFlag = true //Can be removed from the code in case creating multiple issues is required.
+def problemSummary = "[RPTISSUE] ${currentIssue.summary.replaceAll("Zabbix.* - |Prometheus |test|prod|preprod|dev", "")}" //this variable can be used to choose summary based on some condition, e.g based on projectName. Currently is just removes some words from issue summary based on my needs
+def descriptionHeader = "" //default
+def linkedIssuePriority = "Normal" //default
+def List<Issue> listIssues 
+
+if (resultsRepeatable48h.total > 3 && resultsOpenedLinkedHit.total == 0 && !createIssueFlag) {
+	listIssues = resultsRepeatable48h.getResults()
+	descriptionHeader = "Алерт приходит слишком часто последние 2 суток"
+	linkedIssuePriority = "High" //setting non-default priority for linked issue creation
+	createIssueFlag = true 
 }
 
-if (listRepeatableDaily.size() >= 3 && resultsOpenedLinkedHit.total == 0 && !ticketCreatedFlag) {
-	String dailyProblemSummary = "[RPTISSUE] ${currentIssue.summary.replaceAll("Zabbix.* - |Prometheus |test|prod|preprod|dev", "")}" //this variable can be used to choose summary based on some condition, e.g based on projectName. Currently is just removes some words from issue summary based on my needs
-	createLinkedProblem(currentIssue, listRepeatableDaily, "Problem", dailyProblemSummary, "Normal", "Найден ежедневно повторяющийся алерт", projectName, user, visibility)
-	ticketCreatedFlag = true //Can be removed from the code in case creating multiple issues is required.
+if (listRepeatableDaily.size() >= 3 && resultsOpenedLinkedHit.total == 0 && !createIssueFlag) {
+	descriptionHeader = "Найден ежедневно повторяющийся алерт"
+	listIssues = listRepeatableDaily
+	createIssueFlag = true 
 }
 
-if (listRepeatableWeekly.size() >= 2 && resultsOpenedLinkedHit.total == 0 && !ticketCreatedFlag) {
-	String weeklyProblemSummary = "[RPTISSUE] ${currentIssue.summary.replaceAll("Zabbix.* - |Prometheus |test|prod|preprod|dev", "")}" //this variable can be used to choose summary based on some condition, e.g based on projectName. Currently is just removes some words from issue summary based on my needs
-	createLinkedProblem(currentIssue, listRepeatableWeekly, "Problem", weeklyProblemSummary, "Normal", "Найден еженедельно повторяющийся алерт", projectName, user, visibility)
-	ticketCreatedFlag = true //Can be removed from the code in case creating multiple issues is required.
+if (listRepeatableWeekly.size() >= 2 && resultsOpenedLinkedHit.total == 0 && !createIssueFlag) {
+	listIssues = listRepeatableWeekly
+	descriptionHeader = "Найден еженедельно повторяющийся алерт"
+	createIssueFlag = true
 }
 
+
+//Linked issue creation part. All variables should be defined earlier in the code
+
+if (createIssueFlag) {
+	createLinkedProblem(currentIssue, listIssues, "Problem", problemSummary, linkedIssuePriority, descriptionHeader, projectName, user, visibility)
+}
