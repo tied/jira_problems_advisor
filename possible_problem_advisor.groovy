@@ -83,9 +83,9 @@ def createLinkedProblem	 (Issue rootIssue, List<Issue> incidentList, String issu
 	assert project : "Could not find project with key $project"
 	def description =shortDesc+""".
 	${rootIssue.key} - ${rootIssue.summary} Created: ${rootIssue.created.toString().replaceAll(":.{2}[.].{1,3}", "")} Resolved: ${if (rootIssue.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")) == null) {return "Not resolved"} else {rootIssue.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")).toString().replaceAll(":.{2}[.].{1,3}", "")}} 
-    """
-    incidentList.each {result ->; description += """ ${result.key} - ${result.summary} Created: ${result.created.toString().replaceAll(":.{2}[.].{1,3}", "")} Resolved: ${if (result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")) == null) {return "Not resolved"} else {result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")).toString().replaceAll(":.{2}[.].{1,3}", "")}} 
-    """}
+	"""
+	incidentList.each {result ->; description += """ ${result.key} - ${result.summary} Created: ${result.created.toString().replaceAll(":.{2}[.].{1,3}", "")} Resolved: ${if (result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")) == null) {return "Not resolved"} else {result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")).toString().replaceAll(":.{2}[.].{1,3}", "")}} 
+	"""}
 	description += """ """
 	
 	def issueType = constantsManager.allIssueTypeObjects.findByName(issueTypeName)
@@ -95,25 +95,25 @@ def createLinkedProblem	 (Issue rootIssue, List<Issue> incidentList, String issu
 	//next is some jira magic for preparing issueNewProblem to be created
 	def issueContext = new IssueContextImpl(project, issueType) as IssueContext
 	def priorityId = constantsManager.priorities.findByName(priorityName)?.id ?: prioritySchemeManager.getDefaultOption(issueContext)
-    def component = rootIssue.getComponents()
+	def component = rootIssue.getComponents()
 	def issueNewProblem = ComponentAccessor.getIssueFactory().getIssue()
 	issueNewProblem.setProjectId(project.id)
-    issueNewProblem.setComponent(component)
+	issueNewProblem.setComponent(component)
 	issueNewProblem.setIssueTypeId(issueType.id)
 	issueNewProblem.setReporterId(problemAuthor.name)
-    issueNewProblem.setFixVersions(rootIssue.fixVersions)
+	issueNewProblem.setFixVersions(rootIssue.fixVersions)
 	issueNewProblem.setSummary(problemSummary)
 	issueNewProblem.setPriorityId(priorityId)
 	issueNewProblem.setDescription(description)
 	def subTask = ComponentAccessor.getIssueManager().createIssueObject(problemAuthor, issueNewProblem) //this one finally creates the issueNewProblem, and after that line we can address it as regular issue
 	
-    def commentAboutCreatedProblem = shortDesc+". Создан ${issueTypeName} ${issueNewProblem.key}"
-    makeComment(rootIssue, commentAboutCreatedProblem, problemAuthor, commentsVisibility)
+	def commentAboutCreatedProblem = shortDesc+". Создан ${issueTypeName} ${issueNewProblem.key}"
+	makeComment(rootIssue, commentAboutCreatedProblem, problemAuthor, commentsVisibility)
 	
 	//linking the 'issue' which triggered the rule
 	def linkType = ComponentAccessor.getComponent(IssueLinkTypeManager).issueLinkTypes.findByName("Problem/Incident")
-    def destinationIssue = ComponentAccessor.issueManager.getIssueByCurrentKey(issueNewProblem.key)
-    ComponentAccessor.issueLinkManager.createIssueLink(rootIssue.id, destinationIssue.id, linkType.id, 1L, problemAuthor)
+	def destinationIssue = ComponentAccessor.issueManager.getIssueByCurrentKey(issueNewProblem.key)
+	ComponentAccessor.issueLinkManager.createIssueLink(rootIssue.id, destinationIssue.id, linkType.id, 1L, problemAuthor)
 	
 	//linking all issues from incidentList
 	incidentList.each {result ->;
@@ -131,25 +131,22 @@ The result of the function is a list of issues which were found.
 
 
 public List<Issue>  findRepeatableIssues (Integer numberOfSteps, Integer stepDurationDays, Integer minutesGap, Issue issueAnalyzed) {
-   List<Issue> listRepeatable = new ArrayList<Issue>()
-   for (Integer i = 1; i < numberOfSteps+1; i++) {
-   /*
-   Next two lines are ugly as hell, but it works. Probably did a bad job trying to match all those timestamps/dates and JQL requirements. Will mark it as TODO, this definetely can and must be simplified.
-   replaceAll at the end is required since JQL don't want to work when Timestamp has seconds and milliseconds, so this regexp just removes them.
-   also defining variables in each iteration feels wrong to me, TODO rewriting that part.
-   */
-   		def checkFrom = "${(new Date(issueAnalyzed.created.getTime() - i*(stepDurationDays*86400000) - minutesGap*60*1000)).toTimestamp()}".replaceAll(":.{2}[.].{1,3}", "") //this sets starting time to find repeatable issues. 86400000 is 24hours in milliseconds.
-   		def checkTill = "${(new Date(issueAnalyzed.created.getTime()- i*(stepDurationDays*86400000) + minutesGap*60*1000)).toTimestamp()}".replaceAll(":.{2}[.].{1,3}", "") //this sets ending time to find repeatable issues. 86400000 is 24hours in milliseconds
-   		log.debug "${checkFrom}"
-       	log.debug "${checkTill}"
-   		def queryRepeatable = "type = Incident AND project = ${"${issueAnalyzed.key}".replaceAll(/-.*/, "")} AND component = ${issueAnalyzed.getComponents().head().name} AND summary ~ \"${issueAnalyzed.summary}\" AND createdDate > \"${checkFrom}\" and createdDate < \"${checkTill}\" ORDER BY created DESC"
-   		def resultsRepeatable = ComponentAccessor.getComponent(SearchService.class).search(ComponentAccessor.getJiraAuthenticationContext().getLoggedInUser(), ComponentAccessor.getComponent(JqlQueryParser).parseQuery(queryRepeatable), PagerFilter.getUnlimitedFilter())
-   		if (resultsRepeatable.total == 1) { //maybe should use > 1 instead. In such case, need to change listRepeatableDaily defining to work with all results (not only the first as now). But in current design and workload I need == 1. Can hardly imagine more than 1 incident for Component + Summary created in 30 minutes gap per Project.
-       		listRepeatable.add(resultsRepeatable.results.get(0))
-   		}
-   
+	List<Issue> listRepeatable = new ArrayList<Issue>()
+	for (Integer i = 1; i < numberOfSteps+1; i++) {
+	/*
+	Next two lines are ugly as hell, but it works. Probably did a bad job trying to match all those timestamps/dates and JQL requirements. Will mark it as TODO, this definetely can and must be simplified.
+	replaceAll at the end is required since JQL don't want to work when Timestamp has seconds and milliseconds, so this regexp just removes them.
+	also defining variables in each iteration feels wrong to me, TODO rewriting that part.
+	*/
+		def checkFrom = "${(new Date(issueAnalyzed.created.getTime() - i*(stepDurationDays*86400000) - minutesGap*60*1000)).toTimestamp()}".replaceAll(":.{2}[.].{1,3}", "") //this sets starting time to find repeatable issues. 86400000 is 24hours in milliseconds.
+		def checkTill = "${(new Date(issueAnalyzed.created.getTime()- i*(stepDurationDays*86400000) + minutesGap*60*1000)).toTimestamp()}".replaceAll(":.{2}[.].{1,3}", "") //this sets ending time to find repeatable issues. 86400000 is 24hours in milliseconds
+		def queryRepeatable = "type = Incident AND project = ${"${issueAnalyzed.key}".replaceAll(/-.*/, "")} AND component = ${issueAnalyzed.getComponents().head().name} AND summary ~ \"${issueAnalyzed.summary}\" AND createdDate > \"${checkFrom}\" and createdDate < \"${checkTill}\" ORDER BY created DESC"
+		def resultsRepeatable = ComponentAccessor.getComponent(SearchService.class).search(ComponentAccessor.getJiraAuthenticationContext().getLoggedInUser(), ComponentAccessor.getComponent(JqlQueryParser).parseQuery(queryRepeatable), PagerFilter.getUnlimitedFilter())
+		if (resultsRepeatable.total == 1) { //maybe should use > 1 instead. In such case, need to change listRepeatableDaily defining to work with all results (not only the first as now). But in current design and workload I need == 1. Can hardly imagine more than 1 incident for Component + Summary created in 30 minutes gap per Project.
+		listRepeatable.add(resultsRepeatable.results.get(0))
+		}
 	}
-    return listRepeatable
+	return listRepeatable
 }
 
 
@@ -184,34 +181,34 @@ And AFAIK there are no conditional Switch/Case in Java
 def String commentBody= ""
 
 if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total == 0 && resultsOpenedLinkedHit.total == 0) {
-    commentBody += """По компоненту существуют открытые связанные заявки, в которых может производиться исследование проблем: [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]
+	commentBody += """По компоненту существуют открытые связанные заявки, в которых может производиться исследование проблем: [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]
 	Точного наличия открытого исследования по этому алерту установить не удалось."""+emptyLine
 }
 
 if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total == 0 && resultsOpenedLinkedHit.total > 0) {
-    commentBody += """Найдена открытая заявка(и), в которой производится исследование этого алерта: [${resultsOpenedLinkedHit.total}|${jqlToUrl(queryOpenedLinkedHit)}]
+	commentBody += """Найдена открытая заявка(и), в которой производится исследование этого алерта: [${resultsOpenedLinkedHit.total}|${jqlToUrl(queryOpenedLinkedHit)}]
 	Также, по компоненту существуют открытые связанные заявки (могут совпадать с вышенайденными): [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]"""+emptyLine
 }
 
 if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total > 0 && resultsOpenedLinkedHit.total == 0) {
-    commentBody += """По компоненту существуют открытые связанные заявки: [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]
+	commentBody += """По компоненту существуют открытые связанные заявки: [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]
 	За последние двое суток инцидентов по этому компоненту, не связанных с другими заявками: [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}]
 	Точного наличия открытого исследования по этому алерту установить не удалось. Создайте его, если это необходимо"""+emptyLine
 }
 
 if (resultsOpenedProblems.total > 0 && resultsWithoutLinkLast2Days.total > 0 && resultsOpenedLinkedHit.total > 0) {
-    commentBody += """Найдена открытая заявка(и), в которой производится исследование этого алерта: [${resultsOpenedLinkedHit.total}|${jqlToUrl(queryOpenedLinkedHit)}]
+	commentBody += """Найдена открытая заявка(и), в которой производится исследование этого алерта: [${resultsOpenedLinkedHit.total}|${jqlToUrl(queryOpenedLinkedHit)}]
 	Также, по компоненту существуют открытые связанные заявки (могут совпадать с вышенайденными): [${resultsOpenedProblems.total}|${jqlToUrl(queryOpenedProblems)}]
 	За последние двое суток инцидентов по этому компоненту, не связанных с другими заявками: [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}]"""+emptyLine
 }
 
 if (resultsOpenedProblems.total == 0 && resultsWithoutLinkLast2Days.total > 5) {
-    commentBody += """Открытых связанных заявок, в которых может производиться исследование, по этому компоненту не найдено, но число инцидентов с этого сервера за последние 48 часов - [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}] 
+	commentBody += """Открытых связанных заявок, в которых может производиться исследование, по этому компоненту не найдено, но число инцидентов с этого сервера за последние 48 часов - [${resultsWithoutLinkLast2Days.total}|${jqlToUrl(queryWithoutLinkLast2Days)}] 
  Рассмотрите найденные заявки, возможно необходимо создать Problem."""+emptyLine
 }
 
 if (resultsRepeatable12h.total > 3 && resultsOpenedProblems.total == 0) {
-    commentBody += """Открытых связанных заявок по этому компоненту не найдено, но число подобных алертов за последние 12 часов превысило 3. Текущее число: [${resultsRepeatable12h.total}|${jqlToUrl(queryRepeatable12h)}] 
+	commentBody += """Открытых связанных заявок по этому компоненту не найдено, но число подобных алертов за последние 12 часов превысило 3. Текущее число: [${resultsRepeatable12h.total}|${jqlToUrl(queryRepeatable12h)}] 
  Возможно необходимо создать Problem и исследовать причину повторения алертов."""+emptyLine
 }
 
@@ -222,14 +219,14 @@ replaceAll(":.{2}[.].{1,3}", "") is for beautify only, I don't need seconds and 
 */
 if (listRepeatableDaily.size() >= 2) {
 	def commentRepeatableDaily = """Этот алерт возможно повторяется каждый день. За последнюю неделю найдены следующие заявки, приходящие примерно в одно время:"""+newLine
-    listRepeatableDaily.each {result ->; commentRepeatableDaily += """ ${result.key} - ${result.summary} Created: ${result.created.toString().replaceAll(":.{2}[.].{1,3}", "")} Resolved: ${if (result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")) == null) {return "Not resolved"} else {result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")).toString().replaceAll(":.{2}[.].{1}", "")}}"""+newLine}
+	listRepeatableDaily.each {result ->; commentRepeatableDaily += """ ${result.key} - ${result.summary} Created: ${result.created.toString().replaceAll(":.{2}[.].{1,3}", "")} Resolved: ${if (result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")) == null) {return "Not resolved"} else {result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")).toString().replaceAll(":.{2}[.].{1}", "")}}"""+newLine}
 	commentRepeatableDaily += """Проверьте вышенайденные заявки, и если необходимо создайте Problem для исследования."""+emptyLine
 	commentBody += commentRepeatableDaily
 }
 
 if (listRepeatableWeekly.size() >= 2) {
 	def commentRepeatableWeekly = """Этот алерт возможно повторяется каждую неделю. За последние 4 недели найдены следующие заявки, приходящие примерно в одно время:"""+newLine
-    listRepeatableWeekly.each {result ->; commentRepeatableWeekly += """ ${result.key} - ${result.summary} Created: ${result.created.toString().replaceAll(":.{2}[.].{1,3}", "")} Resolved: ${if (result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")) == null) {return "Not resolved"} else {result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")).toString().replaceAll(":.{2}[.].{1}", "")}}"""+newLine}
+	listRepeatableWeekly.each {result ->; commentRepeatableWeekly += """ ${result.key} - ${result.summary} Created: ${result.created.toString().replaceAll(":.{2}[.].{1,3}", "")} Resolved: ${if (result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")) == null) {return "Not resolved"} else {result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time")).toString().replaceAll(":.{2}[.].{1}", "")}}"""+newLine}
 	commentRepeatableWeekly += """Проверьте вышенайденные заявки, и если необходимо создайте Problem для исследования."""+emptyLine
 	commentBody += commentRepeatableWeekly
 }
@@ -248,30 +245,30 @@ Part with actions, like creating tickets or linking
 */
 
 if (resultsOpenedLinkedHit.total == 1) {
-    def linkType = ComponentAccessor.getComponent(IssueLinkTypeManager).issueLinkTypes.findByName("Problem/Incident")
-    def destinationIssue = ComponentAccessor.issueManager.getIssueByCurrentKey(resultsOpenedLinkedHit.results.key.get(0))
-    
-    ComponentAccessor.issueLinkManager.createIssueLink(currentIssue.id, destinationIssue.id, linkType.id, 1L, user)
-    String commentIssueLinked = """Заявка прикреплена к ${destinationIssue}.
-    Проверьте ${destinationIssue} и убедитесь что этот алерт с ним связан. Удалите связь, если прикрепление ошибочно."""
+	def linkType = ComponentAccessor.getComponent(IssueLinkTypeManager).issueLinkTypes.findByName("Problem/Incident")
+	def destinationIssue = ComponentAccessor.issueManager.getIssueByCurrentKey(resultsOpenedLinkedHit.results.key.get(0))
+	
+	ComponentAccessor.issueLinkManager.createIssueLink(currentIssue.id, destinationIssue.id, linkType.id, 1L, user)
+	String commentIssueLinked = """Заявка прикреплена к ${destinationIssue}.
+	Проверьте ${destinationIssue} и убедитесь что этот алерт с ним связан. Удалите связь, если прикрепление ошибочно."""
 	makeComment(currentIssue, commentIssueLinked, user, visibility)
 }
 
 if (resultsRepeatable48h.total > 3 && resultsOpenedLinkedHit.total == 0 && !ticketCreatedFlag) {
-    String tooMuchSameIncidents = "[RPTISSUE] ${currentIssue.summary.replaceAll("Zabbix.* - |Prometheus |test|prod|preprod|dev", "")}" //this variable can be used to choose summary based on some condition, e.g based on projectName. Currently is just removes some words from issue summary based on my needs
+	String tooMuchSameIncidents = "[RPTISSUE] ${currentIssue.summary.replaceAll("Zabbix.* - |Prometheus |test|prod|preprod|dev", "")}" //this variable can be used to choose summary based on some condition, e.g based on projectName. Currently is just removes some words from issue summary based on my needs
 	createLinkedProblem(currentIssue, resultsRepeatable48h.getResults(), "Problem", tooMuchSameIncidents, "High", "Алерт приходит слишком часто последние 2 суток", projectName, user, visibility)
-    ticketCreatedFlag = true //Can be removed from the code in case creating multiple issues is required.
+	ticketCreatedFlag = true //Can be removed from the code in case creating multiple issues is required.
 }
 
 if (listRepeatableDaily.size() >= 3 && resultsOpenedLinkedHit.total == 0 && !ticketCreatedFlag) {
-    String dailyProblemSummary = "[RPTISSUE] ${currentIssue.summary.replaceAll("Zabbix.* - |Prometheus |test|prod|preprod|dev", "")}" //this variable can be used to choose summary based on some condition, e.g based on projectName. Currently is just removes some words from issue summary based on my needs
+	String dailyProblemSummary = "[RPTISSUE] ${currentIssue.summary.replaceAll("Zabbix.* - |Prometheus |test|prod|preprod|dev", "")}" //this variable can be used to choose summary based on some condition, e.g based on projectName. Currently is just removes some words from issue summary based on my needs
 	createLinkedProblem(currentIssue, listRepeatableDaily, "Problem", dailyProblemSummary, "Normal", "Найден ежедневно повторяющийся алерт", projectName, user, visibility)
-    ticketCreatedFlag = true //Can be removed from the code in case creating multiple issues is required.
+	ticketCreatedFlag = true //Can be removed from the code in case creating multiple issues is required.
 }
 
 if (listRepeatableWeekly.size() >= 2 && resultsOpenedLinkedHit.total == 0 && !ticketCreatedFlag) {
-    String weeklyProblemSummary = "[RPTISSUE] ${currentIssue.summary.replaceAll("Zabbix.* - |Prometheus |test|prod|preprod|dev", "")}" //this variable can be used to choose summary based on some condition, e.g based on projectName. Currently is just removes some words from issue summary based on my needs
+	String weeklyProblemSummary = "[RPTISSUE] ${currentIssue.summary.replaceAll("Zabbix.* - |Prometheus |test|prod|preprod|dev", "")}" //this variable can be used to choose summary based on some condition, e.g based on projectName. Currently is just removes some words from issue summary based on my needs
 	createLinkedProblem(currentIssue, listRepeatableWeekly, "Problem", weeklyProblemSummary, "Normal", "Найден еженедельно повторяющийся алерт", projectName, user, visibility)
-    ticketCreatedFlag = true //Can be removed from the code in case creating multiple issues is required.
+	ticketCreatedFlag = true //Can be removed from the code in case creating multiple issues is required.
 }
 
