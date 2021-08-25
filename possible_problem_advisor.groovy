@@ -30,7 +30,7 @@ def projectName = "${currentIssue.key}".replaceAll(/-.*/, "")
 def Boolean createIssueFlag = false //this one is to avoid creating multiple problems by this rule. 
 def visibility = "Staff only" //Name of the visibility group for comment. Default is for Project Roles name. Should be replaced with proper. It may be not useful for someone. You can just comment it out. Also you need to change makeComment function. 
 def Integer repeatableCheckGap = 15 // this set time gap in minutes for finding repeatable issues
-
+def currentIssueSummary = currentIssue.summary.replaceAll("\\(|\\)|\\[|\\]", "") //use this one in JQLs, it has []() removed. Otherwise search may fail without any errors. 
 //just...just don't ask, ok?
 def String emptyLine = """
 
@@ -154,11 +154,11 @@ public List<Issue>  findRepeatableIssues (Integer numberOfSteps, Integer stepDur
 
 def queryWithoutLinkLast2Days = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND issueLinkType != causes AND createdDate > -48h AND issuekey != ${currentIssue.key} ORDER BY created DESC"
 def queryOpenedProblems = "type != Incident AND project = ${projectName} AND issueFunction in linkedIssuesOf(\"type=Incident AND component = ${issueComponent}\", causes) AND status != Closed ORDER BY created DESC"
-def queryRepeatable12h = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND summary ~ \"${currentIssue.summary}\" AND createdDate > -12h ORDER BY created DESC"
-def queryOpenedLinkedHit = "type != Incident AND project = ${projectName} AND issueFunction in linkedIssuesOf(\"type=Incident AND component = ${issueComponent} and summary ~\'${currentIssue.summary}\'\", causes) AND status != Closed ORDER BY created DESC"
+def queryRepeatable12h = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND summary ~ \"${currentIssueSummary}\" AND createdDate > -12h ORDER BY created DESC"
+def queryOpenedLinkedHit = "type != Incident AND project = ${projectName} AND issueFunction in linkedIssuesOf(\"type=Incident AND component = ${issueComponent} and summary ~\'${currentIssueSummary}\'\", causes) AND status != Closed ORDER BY created DESC"
 def queryOpenIncidents = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND status != Closed ORDER BY created DESC"
-def queryRepeatable48h = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND summary ~ \"${currentIssue.summary}\" AND createdDate > -48h AND issuekey != ${currentIssue.key} AND issueLinkType != causes ORDER BY created DESC"
-def queryRepeatable7d = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND summary ~ \"${currentIssue.summary}\" AND createdDate > -7d AND issuekey != ${currentIssue.key} AND issueLinkType != causes ORDER BY created DESC"
+def queryRepeatable48h = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND summary ~ \"${currentIssueSummary}\" AND createdDate > -48h AND issuekey != ${currentIssue.key} AND issueLinkType != causes ORDER BY created DESC"
+def queryRepeatable7d = "type = Incident AND project = ${projectName} AND component = ${issueComponent} AND summary ~ \"${currentIssueSummary}\" AND createdDate > -7d AND issuekey != ${currentIssue.key} AND issueLinkType != causes ORDER BY created DESC"
 
 def resultsWithoutLinkLast2Days = searchService.search(user, jqlQueryParser.parseQuery(queryWithoutLinkLast2Days), pager)
 def resultsOpenedProblems = searchService.search(user, jqlQueryParser.parseQuery(queryOpenedProblems), pager)
