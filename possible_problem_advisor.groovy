@@ -30,7 +30,7 @@ def projectName = "${currentIssue.key}".replaceAll(/-.*/, "")
 def Boolean createIssueFlag = false //this one is to avoid creating multiple problems by this rule. 
 def visibility = "Staff only" //Name of the visibility group for comment. Default is for Project Roles name. Should be replaced with proper. It may be not useful for someone. You can just comment it out. Also you need to change makeComment function. 
 def Integer repeatableCheckGap = 15 // this set time gap in minutes for finding repeatable issues
-def currentIssueSummary = currentIssue.summary.replaceAll("\\(|\\)|\\[|\\]", "") //use this one in JQLs, it has []() removed. Otherwise search may fail without any errors. 
+def currentIssueSummary = currentIssue.summary.replaceAll("\\(|\\)|\\[|\\]", "") //use this one in JQLs, it has []() removed. Otherwise search may fail without any errors (when using functions in jql, like linkedIssuesOf) 
 //just...just don't ask, ok?
 def String emptyLine = """
 
