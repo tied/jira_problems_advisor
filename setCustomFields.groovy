@@ -33,42 +33,85 @@ def setProductName (String parentValue, String childValue, String issueToUpdateK
 }
 
 def description = currentIssue.description
+def pName
 def technology = (description =~ /(?<=technology: ).*/).findAll()
 if (technology.size() < 1) { technology = ""} else {technology = technology.first()}
 
 switch (technology) {
-    case "postgres": setProductName("DB", "POSTGRES", currentIssue.key, user)
+    case "postgres": pName = "postgres"
     break
-    case "mongo": setProductName("DB", "MONGO", currentIssue.key, user)
+    case "mongo": pName = "mongo"
     break
-    case "kafka": setProductName("OTHER", "Kafka", currentIssue.key, user)
+    case "kafka": pName = "kafka"
     break
-    case "elastic": setProductName("DB", "ELASTIC", currentIssue.key, user)
+    case "elastic": pName = "elastic"
     break
-    case "victoriametrics": setProductName("OTHER", "Monitoring", currentIssue.key, user)
+    case "victoriametrics": pName = "monitoring"
     break
-	case "rabbit": setProductName("DB", "RABBITMQ", currentIssue.key, user)
+	case "rabbit": pName = "rabbit"
+    break
+	case "mysql": pName = "mysql"
     break
     default:
         if ((currentIssue.description =~ /Postgres|postgres|postgre|PostgreSQL|POSTGRES/).findAll().size() > 0 || (currentIssue.summary =~ /Postgres|postgres|postgre|PostgreSQL/).findAll().size() > 0  ) {
-		setProductName("DB", "POSTGRES", currentIssue.key, user)
+			pName = "postgres"
 		}
 		else if ((currentIssue.description =~ /Mongo|mongo|MONGO|MongoDB|MONGODB/).findAll().size() > 0 || (currentIssue.summary =~ /Mongo|mongo|MONGO|MongoDB|MONGODB/).findAll().size() > 0  ) {
-		setProductName("DB", "MONGO", currentIssue.key, user)
+			pName = "mongo"
 		}
 		else if ((currentIssue.description =~ /kafka|Kafka|KAFKA/).findAll().size() > 0 || (currentIssue.summary =~ /kafka|Kafka|KAFKA/).findAll().size() > 0  ) {
-		setProductName("OTHER", "Kafka", currentIssue.key, user)
+			pName = "kafka"
 		}
 		else if ((currentIssue.description =~ /ELK|ELASTIC|elastic|Elastic|Elasticsearch/).findAll().size() > 0 || (currentIssue.summary =~ /ELK|ELASTIC|elastic|Elastic|Elasticsearch/).findAll().size() > 0  ) {
-		setProductName("DB", "ELASTIC", currentIssue.key, user)
+			pName = "elastic"
 		}
 		else if ((currentIssue.description =~ /RABBITMQ|RABBIT|rabbit|rabbitmq/).findAll().size() > 0 || (currentIssue.summary =~ /RABBITMQ|RABBIT|rabbit|rabbitmq/).findAll().size() > 0  ) {
-		setProductName("DB", "ELASTIC", currentIssue.key, user)
+			pName = "rabbit"
+		}
+		else if ((currentIssue.description =~ /MYSQL|mysql|mySQL|MySQL|Mysql|mySQL/).findAll().size() > 0 || (currentIssue.summary =~ /MYSQL|mysql|mySQL|MySQL|Mysql|mySQL/).findAll().size() > 0  ) {
+			pName = "mysql"
 		}
 		else {
-		setProductName("OS", "UNIX", currentIssue.key, user)
+			pName = "unix"
 		}
-    	break
+    break
+}
+
+switch (pName) {
+	case "postgres": 
+		setProductName("DB", "POSTGRES", currentIssue.key, user)
+		currentIssue.setFixVersions([ComponentAccessor.versionManager.getVersion(currentIssue.getProject().id, "PostgreSQL_24/7")])
+    break
+    case "mongo": 
+		setProductName("DB", "MONGO", currentIssue.key, user)
+		currentIssue.setFixVersions([ComponentAccessor.versionManager.getVersion(currentIssue.getProject().id, "MongoDB_24/7")])
+    break
+    case "kafka": 
+		setProductName("OTHER", "Kafka", currentIssue.key, user)
+		currentIssue.setFixVersions([ComponentAccessor.versionManager.getVersion(currentIssue.getProject().id, "Kafka_24/7")])
+    break
+    case "elastic": 
+		setProductName("DB", "ELASTIC", currentIssue.key, user)
+		currentIssue.setFixVersions([ComponentAccessor.versionManager.getVersion(currentIssue.getProject().id, "Elasticsearch_24/7")])
+    break
+    case "monitoring": 
+		setProductName("OTHER", "Monitoring", currentIssue.key, user)
+		currentIssue.setFixVersions([ComponentAccessor.versionManager.getVersion(currentIssue.getProject().id, "Support_24/7")])
+    break
+	case "rabbit": 
+		setProductName("DB", "RABBITMQ", currentIssue.key, user)
+		currentIssue.setFixVersions([ComponentAccessor.versionManager.getVersion(currentIssue.getProject().id, "RabbitMQ_24/7")])
+    break
+	case "mysql": 
+		setProductName("DB", "MYSQL", currentIssue.key, user)
+		currentIssue.setFixVersions([ComponentAccessor.versionManager.getVersion(currentIssue.getProject().id, "MySQL/MariaDB_24/7")])
+    break
+	case "unix": 
+		setProductName("OS", "UNIX", currentIssue.key, user)
+		currentIssue.setFixVersions([ComponentAccessor.versionManager.getVersion(currentIssue.getProject().id, "Support_24/7")])
+    break
+    default:
+	break
 }
 
 
@@ -76,9 +119,9 @@ def project = (description =~ /(?<=project: ).*/).findAll()
 if (project.size() < 1) { project = ""} else {project = project.first()}
 def fixVersion=ComponentAccessor.versionManager.getVersion(currentIssue.getProject().id, project)
 
-if (!fixVersion) {
-	fixVersion=ComponentAccessor.versionManager.getVersion(currentIssue.getProject().id, "COMMON")
+if (fixVersion) {
+	currentIssue.setFixVersions([fixVersion])
 }
 
-currentIssue.setFixVersions([fixVersion])
+
 ComponentAccessor.getIssueManager().updateIssue(user, currentIssue, EventDispatchOption.DO_NOT_DISPATCH, false)

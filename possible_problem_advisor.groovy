@@ -29,8 +29,16 @@ def user = ComponentAccessor.getJiraAuthenticationContext().getLoggedInUser()
 def projectName = "${currentIssue.key}".replaceAll(/-.*/, "")
 def Boolean createIssueFlag = false //this one is to avoid creating multiple problems by this rule. 
 def visibility = "Staff only" //Name of the visibility group for comment. Default is for Project Roles name. Should be replaced with proper. It may be not useful for someone. You can just comment it out. Also you need to change makeComment function. 
-def Integer repeatableCheckGap = 15 // this set time gap in minutes for finding repeatable issues
+
+def Integer repeatableCheckGap = 15 //default. This set time gap in minutes for finding repeatable issues
+def Integer thresholdRepeatable48h = 3 //default. If there were more than 3 issues (excluding current) with same summary and component created in last 48h  - trigger Problem creation
+def Integer thresholdRepeatable7d = 5 //default. If there were more than 5 issues (excluding current) with same summary and component created in last 7 days - trigger Problem creation
+def Integer thresholdRepeatableDaily = 3 //default. If there were 3 issues (the current one is 4th) found in findRepeatableIssues for 7 days before the current ticket - trigger Problem creation.
+def Integer thresholdRepeatableWeekly = 2 //default.If there were 2 issues (the current one is 3rd) found in findRepeatableIssues for 5 weeks before the current ticket - trigger Problem creation.
+
 def currentIssueSummary = currentIssue.summary.replaceAll("\\(|\\)|\\[|\\]", "") //use this one in JQLs, it has []() removed. Otherwise search may fail without any errors (when using functions in jql, like linkedIssuesOf) 
+def summaryBeautificationRegexp = "" //default. If project requires some regexp to simplify the summary for related problem creation - it will be redefined later in the code, along with some thresholds.
+def linkedIssuePriority = "Normal" //default. Priority of created Problems (of other is not redifined in rule)
 //just...just don't ask, ok?
 def String emptyLine = """
 
@@ -38,6 +46,22 @@ def String emptyLine = """
 def String newLine = """
 """ 
 //end of strange code
+
+//defining some custom thresholds or variables specific to Project
+switch (projectName) {
+	case "PRJ1":
+		summaryBeautificationRegexp = "Zabbix.* - |Prometheus |test|prod|preprod|dev" //to remove excessive data from Alert name before creating Problem
+	break
+	case "PRJ2":
+	break
+	case "PRJ3":
+	break
+	default:
+	break
+}
+
+
+
 
 def makeComment (Issue issueToComment, String commentText, com.atlassian.jira.user.ApplicationUser commentUser, String vis) {  //at this point I'm not sure why do I need this method. Probably only because it looks more humanfriendly in code
 	//only one line should be here. Commented lines are replacements in case you need other comment visibility options.
@@ -256,32 +280,31 @@ if (resultsOpenedLinkedHit.total == 1) {
 	makeComment(currentIssue, commentIssueLinked, user, visibility)
 }
 
-def problemSummary = "[RPTISSUE] ${currentIssue.summary.replaceAll("Zabbix.* - |Prometheus |test|prod|preprod|dev", "")}" //this variable can be used to choose summary based on some condition, e.g based on projectName. Currently is just removes some words from issue summary based on my needs
+def problemSummary = "[RPTISSUE] ${currentIssue.summary.replaceAll(summaryBeautificationRegexp, "")}" //this variable can be used to choose summary based on some condition, e.g based on projectName. Currently is just removes some words from issue summary based on my needs
 def descriptionHeader = "" //default
-def linkedIssuePriority = "Normal" //default
 def List<Issue> listIssues 
 
-if (resultsRepeatable48h.total > 3 && resultsOpenedLinkedHit.total == 0 && !createIssueFlag) {
+if (resultsRepeatable48h.total > thresholdRepeatable48h && resultsOpenedLinkedHit.total == 0 && !createIssueFlag) {
 	listIssues = resultsRepeatable48h.getResults()
 	descriptionHeader = "Алерт приходил слишком часто за последние 2 суток"
 	linkedIssuePriority = "High" //setting non-default priority for linked issue creation
 	createIssueFlag = true 
 }
 
-if (resultsRepeatable7d.total > 5 && resultsOpenedLinkedHit.total == 0 && !createIssueFlag) {
+if (resultsRepeatable7d.total > thresholdRepeatable7d && resultsOpenedLinkedHit.total == 0 && !createIssueFlag) {
 	listIssues = resultsRepeatable7d.getResults()
 	descriptionHeader = "Алерт приходил слишком часто за последнюю неделю"
 	linkedIssuePriority = "High"
 	createIssueFlag = true 
 }
 
-if (listRepeatableDaily.size() >= 3 && resultsOpenedLinkedHit.total == 0 && !createIssueFlag) {
+if (listRepeatableDaily.size() >= thresholdRepeatableDaily && resultsOpenedLinkedHit.total == 0 && !createIssueFlag) {
 	descriptionHeader = "Найден ежедневно повторяющийся алерт"
 	listIssues = listRepeatableDaily
 	createIssueFlag = true 
 }
 
-if (listRepeatableWeekly.size() >= 2 && resultsOpenedLinkedHit.total == 0 && !createIssueFlag) {
+if (listRepeatableWeekly.size() >= thresholdRepeatableWeekly && resultsOpenedLinkedHit.total == 0 && !createIssueFlag) {
 	listIssues = listRepeatableWeekly
 	descriptionHeader = "Найден еженедельно повторяющийся алерт"
 	createIssueFlag = true
