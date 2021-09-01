@@ -1,16 +1,17 @@
 <h1 align="center">jira_problems_advisor</h1>
 
-<div align="center">Scriptrunner's script for Technical Support Incident automation</div>
+<div align="center">Scriptrunner's scripts for Technical Support Incident automation</div>
 
 **WARNING:** Script is under Development and wasn't tested in any other JIRA environments except the one used in my company
-**USE IT ON YOUR OWN RISK**
+
+<div align="center">USE IT ON YOUR OWN RISK</div>
 
 ## What is this and what is it for?️
 
-This is a script which is supposed to be used as an action in Jira's Project Automation.
-It performs some basic analyze on incoming Incident, trying to find if there are any related Incidents, or if this incident is already being investigated in another issue.
+These are scripts which are supposed to be used as an actions in Jira's Project Automation.
+It performs some basic analyze on incoming Incidents, trying to find if there are any related Incidents, or if this Incident is already being investigated in another issue.
 Also, based on it's findings, it can automatically create linked Problems for further deeper investigation of the Incidents.
-All these is required to improve Problem Management process of first and seconds lines of Tech Support.
+All this is required to improve Problem Management process of first and seconds levels of Tech Support.
 
 ## What is required for it to work?
 
@@ -40,7 +41,7 @@ Load Average is 9.3 on hostname2.domain
 
 ## What it can do?
 ### possible_problem_advisor.groovy
-- Based on Component and Issue links: find and report to comment in ticket Incidents and Problems that are already investigate some issues related to the component current Issue got created with.
+- Based on Component and Issue links: finds and reports Incidents and Problems that may be related or which has this issue being investigated in.
 - Reports any strange behavior (e.g. there are too many opened Incidents with this component, or there were too many such Incidents in last 12h, etc)
 - Automatically link current issue to the problem, if it finds open Problem which already has Incident with same Summary and Component linked to it
 - Find Repeatable Incidents (which get created on Daily or Weekly basis at approximately same time)
