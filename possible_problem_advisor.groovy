@@ -36,7 +36,7 @@ def Integer thresholdRepeatable7d = 5 //default. If there were more than 5 issue
 def Integer thresholdRepeatableDaily = 3 //default. If there were 3 issues (the current one is 4th) found in findRepeatableIssues for 7 days before the current ticket - trigger Problem creation.
 def Integer thresholdRepeatableWeekly = 2 //default.If there were 2 issues (the current one is 3rd) found in findRepeatableIssues for 5 weeks before the current ticket - trigger Problem creation.
 
-def currentIssueSummary = currentIssue.summary.replaceAll("\\(|\\)|\\[|\\]", "") //use this one in JQLs, it has []() removed. Otherwise search may fail without any errors (when using functions in jql, like linkedIssuesOf) 
+def currentIssueSummary = currentIssue.summary.replaceAll("\\(|\\)|\\[|\\]", "").replaceAll("\\\\", "\\\\\\\\") //use this one in JQLs, it has []() removed. Otherwise search may fail without any errors (when using functions in jql, like linkedIssuesOf) 
 def summaryBeautificationRegexp = "" //default. If project requires some regexp to simplify the summary for related problem creation - it will be redefined later in the code, along with some thresholds.
 def linkedIssuePriority = "Normal" //default. Priority of created Problems (of other is not redifined in rule)
 //just...just don't ask, ok?
