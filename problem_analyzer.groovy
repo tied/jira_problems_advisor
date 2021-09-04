@@ -30,6 +30,19 @@ def pager = PagerFilter.getUnlimitedFilter()
 def user = ComponentAccessor.getJiraAuthenticationContext().getLoggedInUser()
 def projectName = "${currentIssue.key}".replaceAll(/-.*/, "")
 def visibility = "Staff only" //Name of the visibility group for comment. Default is for Project Roles name. Should be replaced with proper. It may be not useful for someone. You can just comment it out. Also you need to change makeComment function. 
+def summaryBeautificationRegexp = "Priority.*\\|" 
+
+switch (projectName) {
+	case "PRJ1":
+		summaryBeautificationRegexp = "Zabbix.* - |Prometheus |test|prod|preprod|dev" //to remove excessive data from Alert name before creating Problem
+	break
+	case "PRJ2":
+	break
+	case "PRJ3":
+	break
+	default:
+	break
+}
 
 def created
 def resolved
@@ -58,6 +71,7 @@ def commentBody = """Список прилинкованных алертов:
 def commentAllLinkedIncidents=""
 
 resultsAllLinkedIncidents.getResults().each {result ->;
+	def currentIssueComment
 	created = result.created
 	resolved = result.getCustomFieldValue(ComponentAccessor.getCustomFieldManager().getCustomFieldObjectByName("Inc Good Time"))
     if (resolved == null) {
@@ -67,8 +81,14 @@ resultsAllLinkedIncidents.getResults().each {result ->;
     else {
     	timeInRed = ((resolved.getTime() - created.getTime())/60/1000).intValue() //this line works. Console releases it without problems, however rules have some problems with it. Probably because of crazy type casting between two branches of 'if'.
     }
-    def printedSummary=result.summary.replaceAll("Zabbix.* - |Prometheus |test|prod|preprod|dev", "") //this is just for beautification. Can make a switch-case to set it for different projects.
-	commentAllLinkedIncidents += """ ${result.key} - ${printedSummary} Created: ${created.toString().replaceAll(":.{2}[.].{1,3}", "")} Resolved: ${resolved.toString().replaceAll(":.{2}[.].{1,3}", "")} Minutes Red: ${timeInRed}"""+newLine
+    def printedSummary=result.summary.replaceAll(summaryBeautificationRegexp, "") //this is just for beautification. Can make a switch-case to set it for different projects.
+	currentIssueComment = """ ${result.key} - ${printedSummary} Created: ${created.toString().replaceAll(":.{2}[.].{1,3}", "")} Resolved: ${resolved.toString().replaceAll(":.{2}[.].{1,3}", "")} Minutes Red: ${timeInRed}"""+newLine
+	if (commentAllLinkedIncidents.length() + currentIssueComment.length() + commentBody.length() > 32700) {
+		makeComment(currentIssue, commentBody + commentAllLinkedIncidents+"{code}", user, visibility)
+		commentBody = "{code:java}"
+		commentAllLinkedIncidents = ""
+	}
+	commentAllLinkedIncidents += currentIssueComment
 }
 	commentBody += commentAllLinkedIncidents + """{code}"""+emptyLine
 
