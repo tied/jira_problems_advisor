@@ -46,12 +46,12 @@ Load Average is 9.3 on hostname2.domain
 - Automatically link current issue to the problem, if it finds open Problem which already has Incident with same Summary and Component linked to it
 - Find Repeatable Incidents (which get created on Daily or Weekly basis at approximately same time)
 - Automatically creates a Problem and links all related Incidents to it if it finds repeatable Incident of any kind which has no Problem where it is being investigated
-- [Almost] Automatically creates a Problem if it finds any strange behavior
+- [Almost] Automatically creates a Problem if it finds any strange behavior (at this point made the code human-friendly and ready to add any additional logic)
 ### problem_analyzer.groovy
 - Helper rule to be able to get all linked tickets into the Problem's comment to be able to perform 'human' analyze.
 ### setCustomFields.groovy
 - Helper rule for setting up issue's fields based on ticket desciption. 
-- At this point it is just a sceleton. Though can be used for some more complication logic.
+- At this point it is just a sceleton. Though can be used for some more complicated logic in future.
 
 ## Installation
 Since this is not a plugin, but just a couple of automation scripts, some manual steps are required to make it work. Most likely you must have Admin access to Jira, since 'Scriptrunner script' action for automation available only to Admins.
@@ -59,10 +59,10 @@ All next parts can be done totally independent.
 ### Possible problem advisor
 If you worked with Jira Automation before - you probably know what you're doing. If you haven't - please be extra careful. You'd better try some of it's functionallity first to not only follow the instructions but understand what you are doing.
 0) Make sure that you fit the requirements in [What is required for it to work?](#what-is-required-for-it-to-work) section
-1) Go to Project Settings -> Project Automation and click 'Create Rule' button
+1) Go to Project Settings -> Project Automation and click 'Create Rule' button (from now you can also create the rule on Global Administration, since you can add some custom project-level settings in switch-case part of the code)
 2) In 'New Trigger' section choose 'Issue Created' and Save.
 3) In 'Add component' section choose 'New Condition' -> 'If / else block'. Click 'Add conditions...', and select 'Issue fields condition'. Select 'Creator' 'is one of' and type the user or users which are doing automated Incident creation in you Jira. Click Save.
-4) Click your created condition on the left, and click on 'Add conditions...' again. select 'Issue fields condition'. Select 'Issue Type' 'equals' and select Incident from dropdown menu (it can be any type, but at the moment script has Incident type hardcoded, though it can be easily be changed). Click Save.
+4) Click on your created condition on the left, and click on 'Add conditions...' again. select 'Issue fields condition'. Select 'Issue Type' 'equals' and select Incident from dropdown menu (it can be any type, but at the moment script has Incident type hardcoded, though it can be easily be changed). Click Save.
 5) On the left, click on (+) sign relative to newly created "If: all match" block. Choose New action. Select 'Execute a ScriptRunner script' action.
 6) On the 'Note' enter any desciption you need. Then copy the content of 'possible_problem_advisor.groovy' and paste it to Script field. Wait for some time till script got analyzed. May get 4 lines with exclamation marks, it's ok. Be sure there are no other Errors. Click Save.
 7) Name your automation rule and click Turn it on.
