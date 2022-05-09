@@ -33,15 +33,12 @@ def visibility = "Staff only" //Name of the visibility group for comment. Defaul
 def summaryBeautificationRegexp = "Priority.*\\|" 
 
 switch (projectName) {
-	case "PRJNM1":
-		summaryBeautificationRegexp = "Zabbix.* - |Prometheus |test|prod|preprod|dev" //to remove excessive data from Alert name before creating Problem
+	case "PRJ1":
+		summaryBeautificationRegexp = "Zabbix.* - |Prometheus |test|prod|preprod|dev|Prometheus: |" //to remove excessive data from Alert name before creating Problem
 	break
-    case "PRJNM2":
-	summaryBeautificationRegexp = "\\[Zabbix\\].* - |Prometheus |test|prod|preprod|dev"
+	case "PRJ2":
 	break
-	case "PRJNM3":
-	break
-	case "PRJNM4":
+	case "PRJ3":
 	break
 	default:
 	break
@@ -50,7 +47,7 @@ switch (projectName) {
 def created
 def resolved
 def timeInRed
-
+def linesCount = 0
 
 //just...just don't ask, ok?
 def String emptyLine = """
@@ -64,29 +61,40 @@ def makeComment (Issue issueToComment, String commentText, com.atlassian.jira.us
 	ComponentAccessor.commentManager.create(issueToComment, commentUser, commentText, null,ComponentAccessor.getComponent(ProjectRoleManager).getProjectRole("${vis}").getId(), true) //comment this line if you don't need visibility functionality.
 }
 
+
+//Отчет по открытым проблемам
 def queryAllOpenProblems = "type in (Problem,\"Service request\") AND status not in (Closed, Cancelled, Contract) AND project = ${projectName} ORDER BY created DESC"
 def resultsAllOpenProblems = searchService.search(user, jqlQueryParser.parseQuery(queryAllOpenProblems), pager)
 
 
 def commentBody = """Список Problem с наибольшим числом инцидентов:
+
 """
-def commentAllOpenProblems=""
-def allFound = []
+def openProblemsFound = []
 resultsAllOpenProblems.getResults().each {result ->;
 	def currentIssueComment
     def printedSummary=result.summary.replaceAll(summaryBeautificationRegexp, "") //this is just for beautification. Can make a switch-case to set it for different projects.
     def queryAllLinked = "issuefunction in hasLinks(\"causes\") and issue in linkedIssues(${result.key})"
     def resultsAllLinked = searchService.search(user, jqlQueryParser.parseQuery(queryAllLinked), pager)
     def linked=resultsAllLinked.total
-	def currentProblem = [result.key,printedSummary,linked]
-    allFound.add(currentProblem)
+    def linkedURL="[${resultsAllLinked.total}|${jqlToUrl(queryAllLinked)}]"
+    if (linked > 0) {
+	    def currentProblem = [result.key,printedSummary,linked,linkedURL]
+        openProblemsFound.add(currentProblem)
+    }
 }
 
 
-allFound = allFound.sort{ a,b -> a[2] <=> b[2] }.reverse()
+openProblemsFound = openProblemsFound.sort{ a,b -> a[2] <=> b[2] }.reverse()
 
-for(int i = 0;i<20;i++) {
-    commentBody += """${allFound[i][0]} ${allFound[i][1]} ${allFound[i][2]}"""+newLine
+
+for(problem in openProblemsFound) {
+    linesCount+=1
+    commentBody += """${problem[0]} ${problem[1]} ${problem[3]}"""+newLine
+    if (linesCount == 20) {
+        linesCount = 0
+        break
+    }
 }
 
 
@@ -94,5 +102,150 @@ if (commentBody.length() > 0 && commentBody.length() < 32767) {
 	makeComment(currentIssue, commentBody, user, visibility)
 }
 else {
-    addError("Comment is empty")
+    addError("Comment is empty.")
 }
+//Конец отчета по открытым проблемам
+
+//Отчет по закрытым проблемам за полгода
+def queryAllClosedProblems = "project = ${projectName} AND type in (Problem,\"Service request\") AND status in (Closed, Cancelled, Contract) AND created>-180d AND issueLinkType in (\"is caused by\")  ORDER BY created DESC"
+def resultsAllClosedProblems = searchService.search(user, jqlQueryParser.parseQuery(queryAllClosedProblems), pager)
+
+commentBody = """Список закрытых Problem за полгода с наибольшим числом инцидентов:
+
+"""
+def closedProblemsFound = []
+resultsAllClosedProblems.getResults().each {result ->;
+	def currentIssueComment
+    def printedSummary=result.summary.replaceAll(summaryBeautificationRegexp, "") //this is just for beautification. Can make a switch-case to set it for different projects.
+    def queryAllLinked = "issuefunction in hasLinks(\"causes\") and issue in linkedIssues(${result.key})"
+    def resultsAllLinked = searchService.search(user, jqlQueryParser.parseQuery(queryAllLinked), pager)
+    def linked=resultsAllLinked.total
+    def linkedURL="[${resultsAllLinked.total}|${jqlToUrl(queryAllLinked)}]"
+	def currentProblem = [result.key,printedSummary,linked,linkedURL]
+    closedProblemsFound.add(currentProblem)
+}
+
+
+closedProblemsFound = closedProblemsFound.sort{ a,b -> a[2] <=> b[2] }.reverse()
+
+for(problem in closedProblemsFound) {
+    linesCount+=1
+    commentBody += """${problem[0]} ${problem[1]} ${problem[3]}"""+newLine
+    if (linesCount == 20) {
+        linesCount = 0
+        break
+    }
+}
+
+
+if (commentBody.length() > 0 && commentBody.length() < 32767) {
+	makeComment(currentIssue, commentBody, user, visibility)
+}
+else {
+    addError("Comment is empty.")
+}
+//Конец отчета по закрытым проблемам за полгода
+
+
+//Отчет по повторяющимся проблемам
+def queryAllProblems = "project = ${projectName} AND type in (Problem,\"Service request\") AND issueLinkType in (\"is caused by\") AND created > \"2021-07-01\"  ORDER BY created DESC"
+def resultsAllProblems = searchService.search(user, jqlQueryParser.parseQuery(queryAllProblems), pager)
+
+commentBody = """Список повторяющихся проблем на проекте:
+
+"""
+def allSummaries = []
+def allProblems = []
+resultsAllProblems.getResults().each {result ->;
+    def printedSummary=result.summary.replaceAll(summaryBeautificationRegexp, "").replaceAll("\\[RPTISSUE\\] ", "").replaceAll("\\(|\\)|\\[|\\]", "").replaceAll("\"|	", "").replaceAll("  |   |    |  ", " ").trim().replaceAll(" +", " ") //this is just for beautification. Can make a switch-case to set it for different projects.
+    allSummaries.add(printedSummary)
+}
+
+allSummaries = allSummaries.unique(false)
+
+for (summary in allSummaries) {
+    def queryAllLinked = "project = ${projectName} and summary ~ \"${summary}\" AND type in (Problem,\"Service request\") AND issueLinkType in (\"is caused by\") ORDER BY created DESC"
+    def resultsAllLinked = searchService.search(user, jqlQueryParser.parseQuery(queryAllLinked), pager)
+    def linked=resultsAllLinked.total
+    def linkedURL="[${resultsAllLinked.total}|${jqlToUrl(queryAllLinked)}]"
+    if (linked > 1) {
+        def currentProblem = [summary,linked,linkedURL]
+        allProblems.add(currentProblem)
+    }
+}
+
+
+allProblems = allProblems.sort{ a,b -> a[1] <=> b[1] }.reverse()
+
+for(problem in allProblems) {
+    linesCount+=1
+    commentBody += """${problem[0]} ${problem[2]}"""+newLine
+    if (linesCount == 20) {
+        linesCount = 0
+        break
+    }
+}
+
+
+if (commentBody.length() > 0 && commentBody.length() < 32767) {
+	makeComment(currentIssue, commentBody, user, visibility)
+}
+else {
+    addError("Comment is empty.")
+}
+//Конец отчета по повторяющимся проблемам
+
+//Отчет по кандидатам на закрытие
+queryAllOpenProblems = "type in (Problem) AND status not in (Closed, Cancelled, Contract) AND project = ${projectName} and created < -7d ORDER BY created DESC"
+resultsAllOpenProblems = searchService.search(user, jqlQueryParser.parseQuery(queryAllOpenProblems), pager)
+
+
+commentBody = """Список Problem кандидатов на закрытие:
+
+"""
+def closeCandidates = []
+def currentTime = new Date().getTime()
+resultsAllOpenProblems.getResults().each {result ->;
+	def currentIssueComment
+    def queryAllLinked = "issuefunction in hasLinks(\"causes\") and issue in linkedIssues(${result.key}) order by created desc"
+    def resultsAllLinked = searchService.search(user, jqlQueryParser.parseQuery(queryAllLinked), pager)
+    def linked=resultsAllLinked.total
+    def summarizingMessage=" "
+    if (linked > 0) {
+        def timeSinceLastAlert = ((currentTime - resultsAllLinked.results.get(0).created.getTime())/1000/60/60/24).intValue()
+    	def linkedURL="[${resultsAllLinked.total}|${jqlToUrl(queryAllLinked)}]"
+		def printedSummary=result.summary.replaceAll(summaryBeautificationRegexp, "") //this is just for beautification. Can make a switch-case to set it for different projects.
+    	if (linked == 3 || timeSinceLastAlert >= 7) {
+            if (linked == 3) {
+                summarizingMessage+="| в течение 7 дней после создания Problem не было новых инцидентов"
+            }
+			if (timeSinceLastAlert >= 7) {
+                summarizingMessage+="| новых инцидентов не было в течение ${timeSinceLastAlert} дней"
+            }
+            def currentProblem = [result.key,printedSummary,linked,linkedURL,summarizingMessage]
+    		closeCandidates.add(currentProblem)
+    	}
+    }
+}
+
+
+closeCandidates = closeCandidates.sort{ a,b -> a[2] <=> b[2] }.reverse()
+
+for(candidate in closeCandidates) {
+    linesCount+=1
+    commentBody += """ ${candidate[0]} ${candidate[1]} ${candidate[3]} ${candidate[4]}"""+newLine
+    if (linesCount == 20) {
+        linesCount = 0
+        break
+    }
+
+}
+
+
+if (commentBody.length() > 0 && commentBody.length() < 32767) {
+	makeComment(currentIssue, commentBody, user, visibility)
+}
+else {
+    addError("Comment is empty.")
+}
+//Конец отчета по кандидатам на закрытие
